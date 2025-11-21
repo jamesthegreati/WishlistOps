@@ -1,0 +1,269 @@
+# =============================================================================
+# WishlistOps Automation Workflow
+# =============================================================================
+# 
+# This GitHub Actions workflow automates Steam marketing for indie game developers.
+# It triggers on Git tag pushes, parses commits, generates announcements using AI,
+# and sends them to Discord for human approval before posting to Steam.
+#
+# Architecture: See 04_WishlistOps_System_Architecture_Diagrams.md Section 3
+# Production fixes: See 05_WishlistOps_Revised_Architecture.md
+#
+# Workflow:
+# 1. Checkout repository with full Git history
+# 2. Set up Python 3.11+ environment
+# 3. Install dependencies from requirements.txt
+# 4. Execute main automation script (wishlistops.main)
+# 5. Upload artifacts (logs, drafts) for debugging
+# 6. Send Discord notification on failure
+#
+# Zero-cost infrastructure: Runs entirely on GitHub's free tier
+# =============================================================================
+
+name: WishlistOps Automation
+
+# =============================================================================
+# Trigger Configuration
+# =============================================================================
+
+on:
+  # Trigger on version tag pushes (e.g., v1.2.0, v0.5.3)
+  push:
+    tags:
+      - 'v*.*.*'
+  
+  # Manual dispatch for testing and emergency runs
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without posting to Steam (test mode)'
+        required: false
+        default: 'true'
+      
+      force_run:
+        description: 'Bypass rate limiting checks'
+        required: false
+        default: 'false'
+      
+      verbose:
+        description: 'Enable debug logging'
+        required: false
+        default: 'false'
+  
+  # Optional: Weekly scheduled run (Monday at noon UTC)
+  # Uncomment to enable automatic weekly announcements
+  # schedule:
+  #   - cron: '0 12 * * 1'
+
+# =============================================================================
+# Job Definition
+# =============================================================================
+
+jobs:
+  generate-and-notify:
+    name: Generate Announcement & Notify Discord
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # Prevent runaway costs
+    
+    # Minimal permissions following principle of least privilege
+    permissions:
+      contents: read      # Read repository contents
+      actions: write      # Upload artifacts
+    
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout Repository
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        timeout-minutes: 2
+        with:
+          fetch-depth: 0  # Full history needed for git log parsing
+          # Fetch all tags for version tracking
+          fetch-tags: true
+      
+      # -----------------------------------------------------------------------
+      # Step 2: Set up Python Environment
+      # -----------------------------------------------------------------------
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        timeout-minutes: 3
+        with:
+          python-version: '3.11'
+          # Cache pip dependencies for faster runs
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      
+      # -----------------------------------------------------------------------
+      # Step 3: Install Python Dependencies
+      # -----------------------------------------------------------------------
+      - name: Install dependencies
+        timeout-minutes: 3
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # Verify critical packages installed
+          python -c "import pydantic; import aiohttp; import PIL"
+      
+      # -----------------------------------------------------------------------
+      # Step 4: Verify Configuration Exists
+      # -----------------------------------------------------------------------
+      - name: Verify configuration file
+        timeout-minutes: 1
+        run: |
+          if [ ! -f wishlistops/config.json ]; then
+            echo "❌ Error: config.json not found"
+            echo "Please create wishlistops/config.json before running workflow"
+            exit 1
+          fi
+          echo "✅ Configuration file found"
+      
+      # -----------------------------------------------------------------------
+      # Step 5: Run WishlistOps Automation
+      # -----------------------------------------------------------------------
+      - name: Run WishlistOps automation
+        timeout-minutes: 8
+        env:
+          # Required API keys and secrets
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+          GOOGLE_AI_KEY: ${{ secrets.GOOGLE_AI_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # GitHub token for API access (automatically provided)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Build command with optional flags
+          CMD="python -m wishlistops.main --config wishlistops/config.json"
+          
+          # Add dry-run flag if enabled
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            CMD="$CMD --dry-run"
+            echo "🧪 Running in DRY RUN mode (no Steam posting)"
+          fi
+          
+          # Add force flag if enabled
+          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            CMD="$CMD --force"
+            echo "⚡ FORCE mode enabled (bypassing rate limits)"
+          fi
+          
+          # Add verbose logging if enabled
+          if [ "${{ github.event.inputs.verbose }}" = "true" ]; then
+            CMD="$CMD --verbose"
+            echo "🔍 Debug logging enabled"
+          fi
+          
+          # Execute automation
+          echo "Running: $CMD"
+          $CMD
+      
+      # -----------------------------------------------------------------------
+      # Step 6: Upload Logs and Drafts (Always runs, even on failure)
+      # -----------------------------------------------------------------------
+      - name: Upload artifacts
+        if: always()  # Run even if previous steps failed
+        uses: actions/upload-artifact@v4
+        timeout-minutes: 2
+        with:
+          name: wishlistops-logs-${{ github.run_number }}
+          path: |
+            wishlistops/logs/
+            wishlistops/drafts/
+            wishlistops/state.json
+          retention-days: 30
+          if-no-files-found: warn
+      
+      # -----------------------------------------------------------------------
+      # Step 7: Upload Generated Images (if any)
+      # -----------------------------------------------------------------------
+      - name: Upload generated images
+        if: always()
+        uses: actions/upload-artifact@v4
+        timeout-minutes: 2
+        continue-on-error: true  # Don't fail if no images generated
+        with:
+          name: wishlistops-images-${{ github.run_number }}
+          path: |
+            wishlistops/output/*.png
+            wishlistops/output/*.jpg
+          retention-days: 30
+          if-no-files-found: ignore
+      
+      # -----------------------------------------------------------------------
+      # Step 8: Notify Discord on Failure
+      # -----------------------------------------------------------------------
+      - name: Notify Discord on failure
+        if: failure()
+        timeout-minutes: 1
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Only send notification if webhook URL is configured
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "⚠️ Discord webhook not configured, skipping notification"
+            exit 0
+          fi
+          
+          # Build error notification
+          WORKFLOW_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          curl -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"content\": \"❌ **WishlistOps Workflow Failed**\",
+              \"embeds\": [{
+                \"title\": \"Automation Error\",
+                \"description\": \"The WishlistOps automation workflow encountered an error.\",
+                \"color\": 15158332,
+                \"fields\": [
+                  {
+                    \"name\": \"Repository\",
+                    \"value\": \"${{ github.repository }}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"Triggered By\",
+                    \"value\": \"${{ github.actor }}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"Ref\",
+                    \"value\": \"${{ github.ref }}\",
+                    \"inline\": true
+                  }
+                ],
+                \"timestamp\": \"${{ github.event.head_commit.timestamp }}\",
+                \"footer\": {
+                  \"text\": \"GitHub Actions\"
+                }
+              }],
+              \"components\": [{
+                \"type\": 1,
+                \"components\": [{
+                  \"type\": 2,
+                  \"label\": \"View Logs\",
+                  \"style\": 5,
+                  \"url\": \"$WORKFLOW_URL\"
+                }]
+              }]
+            }"
+          
+          echo "📤 Failure notification sent to Discord"
+      
+      # -----------------------------------------------------------------------
+      # Step 9: Notify Discord on Success
+      # -----------------------------------------------------------------------
+      - name: Notify Discord on success
+        if: success()
+        timeout-minutes: 1
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Optional: Send success notification
+          # (Main notifications handled by Python script)
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            exit 0
+          fi
+          
+          echo "✅ Workflow completed successfully"
+          # Success notifications handled by wishlistops.discord_notifier

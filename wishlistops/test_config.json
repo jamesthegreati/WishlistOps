@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "steam": {
+    "app_id": "480",
+    "app_name": "Your Game Name Here"
+  },
+  "branding": {
+    "art_style": "describe your game's visual style (e.g., pixel art fantasy)",
+    "color_palette": [
+      "#FF6B6B",
+      "#4ECDC4",
+      "#FFE66D"
+    ],
+    "logo_position": "top-right",
+    "logo_size_percent": 25,
+    "logo_path": "wishlistops/assets/logo.png"
+  },
+  "voice": {
+    "tone": "casual and excited",
+    "personality": "friendly indie developer",
+    "avoid_phrases": [
+      "monetization",
+      "grind",
+      "lootbox",
+      "pay-to-win"
+    ]
+  },
+  "automation": {
+    "enabled": true,
+    "trigger_on_tags": true,
+    "schedule": null,
+    "min_days_between_posts": 7,
+    "require_manual_approval": true
+  },
+  "ai": {
+    "model_text": "gemini-1.5-pro",
+    "model_image": "gemini-2.5-flash-image",
+    "temperature": 0.7,
+    "max_retries": 3
+  }
+}

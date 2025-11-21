@@ -1,0 +1,24 @@
+# Dev docs (ignored)
+BUILD_PLAN_*.md
+TASK_*.md
+00_*.md
+01_*.md
+02_*.md
+03_*.md
+04_*.md
+05_*.md
+06_*.md
+07_*.md
+
+# Environment & secrets
+.env
+.env.*
+*.secret
+*.key
+
+# Python / OS / IDE
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.DS_Store

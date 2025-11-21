@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "steam": {
+    "app_id": "480",
+    "app_name": "My Indie Game"
+  },
+  "branding": {
+    "art_style": "pixel art fantasy with vibrant colors and whimsical characters",
+    "color_palette": ["#4A90E2", "#F5A623", "#7ED321"],
+    "logo_position": "bottom-right",
+    "logo_size_percent": 25,
+    "logo_path": "wishlistops/assets/logo.png",
+    "logo_opacity": 0.9
+  },
+  "voice": {
+    "tone": "enthusiastic but professional",
+    "personality": "friendly game developer sharing exciting updates",
+    "avoid_phrases": [
+      "delve",
+      "leverage",
+      "paradigm",
+      "synergy",
+      "dive deep",
+      "unpack",
+      "at the end of the day"
+    ],
+    "max_title_length": 100,
+    "max_body_length": 3000
+  },
+  "automation": {
+    "enabled": true,
+    "trigger_on_tags": true,
+    "schedule": null,
+    "min_days_between_posts": 7,
+    "min_commits_required": 5,
+    "require_tag": true,
+    "require_manual_approval": true
+  },
+  "ai": {
+    "model_text": "gemini-1.5-pro",
+    "model_image": "gemini-2.5-flash-image",
+    "temperature": 0.7,
+    "max_retries": 3,
+    "timeout_seconds": 30
+  }
+}

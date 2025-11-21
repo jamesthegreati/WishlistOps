@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WishlistOps Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1 class="logo">🎮 WishlistOps</h1>
+                    <p class="tagline">Automated Steam Marketing for Indie Developers</p>
+                </div>
+                <div id="auth-section">
+                    <button id="sign-in-btn" class="btn btn-primary">
+                        Sign in with GitHub
+                    </button>
+                    <div id="user-info" class="user-info hidden">
+                        <img id="user-avatar" class="avatar" alt="User avatar">
+                        <span id="user-name"></span>
+                        <button id="sign-out-btn" class="btn btn-secondary">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main container">
+        <!-- Loading State -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Welcome Screen (not signed in) -->
+        <div id="welcome-screen" class="welcome-screen">
+            <h2>Welcome to WishlistOps</h2>
+            <p class="subtitle">Automate your Steam marketing so you can focus on game development.</p>
+            <div class="features">
+                <div class="feature">
+                    <h3>✨ AI-Generated Announcements</h3>
+                    <p>Automatically create Steam announcements from your Git commits</p>
+                </div>
+                <div class="feature">
+                    <h3>🎨 Beautiful Banners</h3>
+                    <p>AI generates custom banners with your game's logo</p>
+                </div>
+                <div class="feature">
+                    <h3>✅ Human Approval</h3>
+                    <p>Review in Discord before posting to Steam</p>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-large" onclick="document.getElementById('sign-in-btn').click()">
+                Get Started
+            </button>
+        </div>
+
+        <!-- Repository Selection -->
+        <div id="repo-selection" class="hidden">
+            <h2>Select Repository</h2>
+            <p class="section-description">Choose the repository you want to configure for WishlistOps:</p>
+            <div id="repos-list" class="repos-list"></div>
+        </div>
+
+        <!-- Configuration Editor -->
+        <div id="config-editor" class="hidden">
+            <div class="editor-header">
+                <h2 id="current-repo-name"></h2>
+                <button id="back-to-repos" class="btn btn-secondary">← Back to Repositories</button>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status-message" class="status-message hidden"></div>
+
+            <!-- Configuration Form -->
+            <form id="config-form" class="config-form">
+                
+                <!-- Steam Settings -->
+                <section class="config-section">
+                    <h3>🎮 Steam Configuration</h3>
+                    <div class="form-group">
+                        <label for="steam-app-id">Steam App ID *</label>
+                        <input type="text" id="steam-app-id" pattern="[0-9]{6,7}" required
+                               placeholder="e.g., 480">
+                        <small>Find this in your Steamworks dashboard</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="steam-app-name">Game Name *</label>
+                        <input type="text" id="steam-app-name" required
+                               placeholder="e.g., My Awesome Game">
+                    </div>
+                </section>
+
+                <!-- Branding Settings -->
+                <section class="config-section">
+                    <h3>🎨 Branding</h3>
+                    <div class="form-group">
+                        <label for="art-style">Art Style *</label>
+                        <input type="text" id="art-style" required
+                               placeholder="e.g., pixel art fantasy, low poly sci-fi">
+                        <small>Describe your game's visual style for AI image generation</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="color-palette">Color Palette</label>
+                        <input type="text" id="color-palette"
+                               placeholder="e.g., #FF6B6B, #4ECDC4, #FFE66D">
+                        <small>Hex color codes separated by commas (optional)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="logo-position">Logo Position</label>
+                        <select id="logo-position">
+                            <option value="top-right">Top Right</option>
+                            <option value="top-left">Top Left</option>
+                            <option value="center">Center</option>
+                            <option value="bottom-right">Bottom Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="logo-size">Logo Size</label>
+                        <div class="range-group">
+                            <input type="range" id="logo-size" min="10" max="50" value="25">
+                            <output id="logo-size-value">25%</output>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Voice Settings -->
+                <section class="config-section">
+                    <h3>✍️ Writing Voice</h3>
+                    <div class="form-group">
+                        <label for="tone">Tone</label>
+                        <input type="text" id="tone"
+                               placeholder="e.g., casual and excited">
+                    </div>
+                    <div class="form-group">
+                        <label for="personality">Personality</label>
+                        <input type="text" id="personality"
+                               placeholder="e.g., friendly indie developer">
+                    </div>
+                    <div class="form-group">
+                        <label for="avoid-phrases">Avoid Phrases</label>
+                        <input type="text" id="avoid-phrases"
+                               placeholder="e.g., monetization, grind, lootbox">
+                        <small>Words/phrases to avoid in announcements (comma-separated)</small>
+                    </div>
+                </section>
+
+                <!-- Automation Settings -->
+                <section class="config-section">
+                    <h3>⚙️ Automation</h3>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="automation-enabled" checked>
+                            <span>Enable automation</span>
+                        </label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="trigger-on-tags" checked>
+                            <span>Trigger on Git tags</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="min-days">Minimum Days Between Posts</label>
+                        <input type="number" id="min-days" min="1" max="30" value="7">
+                        <small>Rate limiting (prevents spam)</small>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="require-approval" checked>
+                            <span>Require manual approval (Discord)</span>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- AI Settings -->
+                <section class="config-section">
+                    <h3>🤖 AI Settings (Advanced)</h3>
+                    <div class="form-group">
+                        <label for="temperature">Creativity Level</label>
+                        <div class="range-group">
+                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
+                            <output id="temperature-value">0.7</output>
+                        </div>
+                        <small>0 = consistent, 1 = creative</small>
+                    </div>
+                </section>
+
+                <!-- Action Buttons -->
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-large">
+                        💾 Save Configuration
+                    </button>
+                    <button type="button" id="preview-btn" class="btn btn-secondary">
+                        👁️ Preview JSON
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- JSON Preview Modal -->
+        <div id="preview-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Configuration Preview</h3>
+                    <button class="close" aria-label="Close modal">&times;</button>
+                </div>
+                <pre><code id="preview-json"></code></pre>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="document.getElementById('preview-modal').classList.add('hidden')">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 WishlistOps | <a href="https://github.com/your-org/wishlistops">GitHub</a> | <a href="docs.html">Documentation</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
