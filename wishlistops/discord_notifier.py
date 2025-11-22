@@ -8,7 +8,7 @@ Architecture: See 05_WishlistOps_Revised_Architecture.md Fix #2
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 import aiohttp
@@ -79,7 +79,8 @@ class DiscordNotifier:
         body: str,
         banner_url: Optional[str] = None,
         game_name: Optional[str] = None,
-        tag: Optional[str] = None
+        tag: Optional[str] = None,
+        steam_app_id: Optional[str] = None
     ) -> bool:
         """
         Send draft announcement to Discord for approval.
@@ -90,6 +91,7 @@ class DiscordNotifier:
             banner_url: URL to generated banner image
             game_name: Name of the game
             tag: Git tag (e.g., v1.2.0)
+            steam_app_id: Steam App ID for direct links
             
         Returns:
             True if sent successfully, False if dry run or webhook not configured
@@ -105,7 +107,8 @@ class DiscordNotifier:
             logger.info("DRY RUN: Would send to Discord", extra={
                 "title": title,
                 "body_length": len(body),
-                "has_banner": bool(banner_url)
+                "has_banner": bool(banner_url),
+                "steam_app_id": steam_app_id
             })
             return False
         
@@ -121,12 +124,31 @@ class DiscordNotifier:
             body=body,
             banner_url=banner_url,
             game_name=game_name,
-            tag=tag
+            tag=tag,
+            steam_app_id=steam_app_id
         )
+        
+        # Build Action Row with Link Button
+        components = []
+        if steam_app_id:
+            steamworks_url = f"https://partner.steamgames.com/apps/landing/{steam_app_id}"
+            components = [
+                {
+                    "type": 1,  # Action Row
+                    "components": [
+                        {
+                            "type": 2,  # Button
+                            "style": 5,  # Link Button
+                            "label": "🚀 Open Steamworks",
+                            "url": steamworks_url
+                        }
+                    ]
+                }
+            ]
         
         # Send to Discord
         try:
-            await self._send_webhook(embed)
+            await self._send_webhook(embed, components)
             logger.info("Approval request sent successfully")
             return True
         except Exception as e:
@@ -139,7 +161,8 @@ class DiscordNotifier:
         body: str,
         banner_url: Optional[str],
         game_name: Optional[str],
-        tag: Optional[str]
+        tag: Optional[str],
+        steam_app_id: Optional[str]
     ) -> dict:
         """
         Build Discord embed for approval request.
@@ -150,6 +173,7 @@ class DiscordNotifier:
             banner_url: Banner image URL
             game_name: Game name
             tag: Git tag
+            steam_app_id: Steam App ID
             
         Returns:
             Discord embed payload
@@ -164,9 +188,14 @@ class DiscordNotifier:
         description = (
             f"**Game:** {game_name or 'Unknown'}\n"
             f"**Version:** {tag or 'Unknown'}\n"
-            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+            f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
             f"**Preview:**\n{body_preview}"
         )
+        
+        # Add direct link to description if App ID exists
+        if steam_app_id:
+            steam_url = f"https://partner.steamgames.com/apps/landing/{steam_app_id}"
+            description += f"\n\n🔗 [Manage on Steamworks]({steam_url})"
         
         # Truncate if too long
         if len(description) > self.MAX_EMBED_DESCRIPTION:
@@ -183,7 +212,7 @@ class DiscordNotifier:
                     "value": (
                         "1. Review the announcement above\n"
                         "2. Check the banner image below\n"
-                        "3. Log into Steamworks dashboard\n"
+                        "3. Click 'Open Steamworks' to publish\n"
                         "4. Find the 'Hidden' announcement\n"
                         "5. Edit if needed, then publish"
                     ),
@@ -200,7 +229,7 @@ class DiscordNotifier:
                 }
             ],
             "footer": {
-                "text": "WishlistOps • Automated Steam Marketing"
+                "text": f"WishlistOps • App ID: {steam_app_id or 'N/A'}"
             },
             "timestamp": datetime.utcnow().isoformat()
         }
@@ -237,7 +266,7 @@ class DiscordNotifier:
             "title": "❌ WishlistOps Workflow Failed",
             "description": (
                 f"**Error:**\n```\n{error_message[:500]}\n```\n\n"
-                f"**Time:** {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+                f"**Time:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
                 f"**Actions:**\n"
                 f"1. Check GitHub Actions logs\n"
                 f"2. Verify API keys are set correctly\n"
@@ -280,11 +309,25 @@ class DiscordNotifier:
         description = (
             f"✅ **Announcement Posted Successfully**\n\n"
             f"**Title:** {title}\n"
-            f"**Time:** {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
+            f"**Time:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n"
         )
         
+        components = []
         if steam_url:
             description += f"\n**View on Steam:** {steam_url}"
+            components = [
+                {
+                    "type": 1,
+                    "components": [
+                        {
+                            "type": 2,
+                            "style": 5,
+                            "label": "👀 View on Steam",
+                            "url": steam_url
+                        }
+                    ]
+                }
+            ]
         
         embed = {
             "title": "✅ Announcement Published",
@@ -297,18 +340,19 @@ class DiscordNotifier:
         }
         
         try:
-            await self._send_webhook(embed)
+            await self._send_webhook(embed, components)
             return True
         except Exception as e:
             logger.error(f"Failed to send success notification: {e}")
             return False
     
-    async def _send_webhook(self, embed: dict) -> None:
+    async def _send_webhook(self, embed: dict, components: Optional[List[Dict[str, Any]]] = None) -> None:
         """
-        Send embed to Discord webhook.
+        Send payload to Discord webhook.
         
         Args:
             embed: Discord embed object
+            components: Optional list of interactive components (buttons)
             
         Raises:
             WebhookError: If delivery fails
@@ -317,6 +361,9 @@ class DiscordNotifier:
             "username": "WishlistOps",
             "embeds": [embed]
         }
+        
+        if components:
+            payload["components"] = components
         
         async with aiohttp.ClientSession() as session:
             async with session.post(

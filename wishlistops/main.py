@@ -457,7 +457,10 @@ Personality: {self.config.voice.personality}
             await self.notifier.send_approval_request(
                 title=draft.title,
                 body=draft.body,
-                banner_url=draft.banner_url
+                banner_url=draft.banner_url,
+                game_name=self.config.steam.app_name,
+                tag=self.state.get_last_tag(),
+                steam_app_id=self.config.steam.app_id
             )
             
             logger.info("Approval request sent successfully")
