@@ -7,9 +7,11 @@ This is the critical quality gate that prevents AI mistakes.
 Architecture: See 05_WishlistOps_Revised_Architecture.md Fix #2
 """
 
+import json
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
 import aiohttp
 
@@ -78,6 +80,7 @@ class DiscordNotifier:
         title: str,
         body: str,
         banner_url: Optional[str] = None,
+        banner_path: Optional[str] = None,
         game_name: Optional[str] = None,
         tag: Optional[str] = None,
         steam_app_id: Optional[str] = None
@@ -89,6 +92,7 @@ class DiscordNotifier:
             title: Announcement title
             body: Announcement body (full text)
             banner_url: URL to generated banner image
+            banner_path: Local filesystem path to banner (uploaded as attachment)
             game_name: Name of the game
             tag: Git tag (e.g., v1.2.0)
             steam_app_id: Steam App ID for direct links
@@ -119,14 +123,30 @@ class DiscordNotifier:
         })
         
         # Build embed
+        attachment_bytes: Optional[bytes] = None
+        attachment_name: Optional[str] = None
+        if banner_path:
+            path = Path(banner_path)
+            if path.exists():
+                try:
+                    attachment_bytes = path.read_bytes()
+                    attachment_name = path.name
+                    logger.info("Attaching local banner to Discord notification", extra={"path": str(path)})
+                except OSError as exc:
+                    logger.warning("Failed to read banner for upload", extra={"path": str(path), "error": str(exc)})
+            else:
+                logger.warning("Banner path does not exist", extra={"path": str(path)})
+
         embed = self._build_approval_embed(
             title=title,
             body=body,
-            banner_url=banner_url,
+            banner_url=None if attachment_bytes else banner_url,
             game_name=game_name,
             tag=tag,
             steam_app_id=steam_app_id
         )
+        if attachment_bytes and attachment_name:
+            embed["image"] = {"url": f"attachment://{attachment_name}"}
         
         # Build Action Row with Link Button
         components = []
@@ -148,7 +168,12 @@ class DiscordNotifier:
         
         # Send to Discord
         try:
-            await self._send_webhook(embed, components)
+            await self._send_webhook(
+                embed,
+                components,
+                file_bytes=attachment_bytes,
+                filename=attachment_name
+            )
             logger.info("Approval request sent successfully")
             return True
         except Exception as e:
@@ -188,7 +213,7 @@ class DiscordNotifier:
         description = (
             f"**Game:** {game_name or 'Unknown'}\n"
             f"**Version:** {tag or 'Unknown'}\n"
-            f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+            f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n"
             f"**Preview:**\n{body_preview}"
         )
         
@@ -231,7 +256,7 @@ class DiscordNotifier:
             "footer": {
                 "text": f"WishlistOps • App ID: {steam_app_id or 'N/A'}"
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Add banner image if available
@@ -266,7 +291,7 @@ class DiscordNotifier:
             "title": "❌ WishlistOps Workflow Failed",
             "description": (
                 f"**Error:**\n```\n{error_message[:500]}\n```\n\n"
-                f"**Time:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+                f"**Time:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n"
                 f"**Actions:**\n"
                 f"1. Check GitHub Actions logs\n"
                 f"2. Verify API keys are set correctly\n"
@@ -276,7 +301,7 @@ class DiscordNotifier:
             "footer": {
                 "text": "WishlistOps • Error Notification"
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         try:
@@ -309,7 +334,7 @@ class DiscordNotifier:
         description = (
             f"✅ **Announcement Posted Successfully**\n\n"
             f"**Title:** {title}\n"
-            f"**Time:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n"
+            f"**Time:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
         )
         
         components = []
@@ -336,7 +361,7 @@ class DiscordNotifier:
             "footer": {
                 "text": "WishlistOps • Success Notification"
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         try:
@@ -346,7 +371,13 @@ class DiscordNotifier:
             logger.error(f"Failed to send success notification: {e}")
             return False
     
-    async def _send_webhook(self, embed: dict, components: Optional[List[Dict[str, Any]]] = None) -> None:
+    async def _send_webhook(
+        self,
+        embed: dict,
+        components: Optional[List[Dict[str, Any]]] = None,
+        file_bytes: Optional[bytes] = None,
+        filename: Optional[str] = None
+    ) -> None:
         """
         Send payload to Discord webhook.
         
@@ -364,12 +395,25 @@ class DiscordNotifier:
         
         if components:
             payload["components"] = components
+
+        request_kwargs: Dict[str, Any] = {"timeout": aiohttp.ClientTimeout(total=10)}
+        if file_bytes:
+            form = aiohttp.FormData()
+            form.add_field("payload_json", json.dumps(payload), content_type="application/json")
+            form.add_field(
+                "file",
+                file_bytes,
+                filename=filename or "banner.png",
+                content_type="application/octet-stream"
+            )
+            request_kwargs["data"] = form
+        else:
+            request_kwargs["json"] = payload
         
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 self.webhook_url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
+                **request_kwargs
             ) as response:
                 
                 if response.status == 429:
@@ -417,7 +461,7 @@ async def notify_discord(
     embed = {
         "description": message,
         "color": 5814783,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     try:

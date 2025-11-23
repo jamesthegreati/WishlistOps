@@ -192,6 +192,19 @@ def test_resize_to_steam_specs_method(branding_config):
     assert resized_correct.size == (800, 450)
 
 
+def test_smart_crop_handles_aspect_ratios(branding_config):
+    """Smart crop should center crop wide and tall images without distortion."""
+    compositor = ImageCompositor(branding_config)
+    wide_image = Image.new('RGB', (2000, 450), color='purple')
+    cropped_wide = compositor._smart_crop(wide_image, 800, 450)
+    assert cropped_wide.size[1] == 450
+    assert cropped_wide.size[0] <= 2000
+    tall_image = Image.new('RGB', (800, 1200), color='orange')
+    cropped_tall = compositor._smart_crop(tall_image, 800, 450)
+    assert cropped_tall.size[0] == 800
+    assert cropped_tall.size[1] <= 1200
+
+
 def test_load_and_prepare_logo(test_logo, branding_config):
     """Test _load_and_prepare_logo method."""
     compositor = ImageCompositor(branding_config)

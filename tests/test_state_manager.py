@@ -114,7 +114,8 @@ def test_rate_limiting(temp_state_path):
     assert manager.should_allow_post(min_days=7) is False
     
     # Fake time passage by modifying state
-    past_date = (datetime.utcnow() - timedelta(days=8)).isoformat()
+    from datetime import timezone
+    past_date = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
     manager.state.last_post_date = past_date
     
     # Now should be allowed
@@ -129,7 +130,8 @@ def test_get_days_since_last_post(temp_state_path):
     assert manager.get_days_since_last_post() is None
     
     # Post 5 days ago
-    past_date = (datetime.utcnow() - timedelta(days=5)).isoformat()
+    from datetime import timezone
+    past_date = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
     manager.state.last_post_date = past_date
     
     days = manager.get_days_since_last_post()
@@ -289,6 +291,7 @@ def test_state_with_commit_sha(temp_state_path):
 
 def test_update_last_post(temp_state_path):
     """Test updating last post information."""
+    from datetime import timezone
     manager = StateManager(temp_state_path)
     
     manager.update_last_post(title="Major Update Released!")
@@ -299,7 +302,7 @@ def test_update_last_post(temp_state_path):
     # Verify date is recent
     post_date = manager.get_last_post_date()
     assert post_date is not None
-    assert (datetime.utcnow() - post_date).total_seconds() < 5
+    assert (datetime.now(timezone.utc) - post_date).total_seconds() < 5
 
 
 def test_invalid_last_post_date_format(temp_state_path):

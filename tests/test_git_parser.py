@@ -7,6 +7,7 @@ Tests commit parsing, classification, and Git operations.
 import pytest
 from pathlib import Path
 from datetime import datetime
+from unittest.mock import patch
 from wishlistops.git_parser import GitParser, Commit
 from git.exc import InvalidGitRepositoryError
 
@@ -242,3 +243,20 @@ class TestEdgeCases:
         result = parser._is_player_facing("Add new feature", [])
         # Should classify based on message only
         assert isinstance(result, bool)
+
+    def test_explicit_screenshot_directive(self, parser, tmp_path):
+        """GitParser should respect [shot: path] directives."""
+        screenshot = tmp_path / "promo.png"
+        screenshot.write_bytes(b"fake")
+        with patch.object(parser, "_resolve_repo_path", return_value=screenshot):
+            resolved = parser._detect_screenshot_path("feat: new boss [shot: promo.png]", [])
+        assert resolved == screenshot
+
+    def test_implicit_screenshot_detection(self, parser, tmp_path):
+        """Screenshot files in commits should be detected automatically."""
+        screenshot = tmp_path / "screenshots" / "boss.png"
+        screenshot.parent.mkdir(parents=True, exist_ok=True)
+        screenshot.write_bytes(b"fake")
+        with patch.object(parser, "_resolve_repo_path", return_value=screenshot):
+            resolved = parser._detect_screenshot_path("feat: new boss", ["screenshots/boss.png"])
+        assert resolved == screenshot

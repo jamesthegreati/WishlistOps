@@ -415,6 +415,8 @@ class GeminiClient:
             
             # Extract base64 image data
             inline_data = parts[0].get('inline_data', {})
+            if not inline_data:
+                inline_data = parts[0].get('inlineData', {})
             image_b64 = inline_data.get('data', '')
             
             if not image_b64:

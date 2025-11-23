@@ -81,6 +81,7 @@ jobs:
           fetch-depth: 0  # Full history needed for git log parsing
           # Fetch all tags for version tracking
           fetch-tags: true
+          lfs: true  # Fetch binary screenshots tracked via Git LFS
       
       # -----------------------------------------------------------------------
       # Step 2: Set up Python Environment

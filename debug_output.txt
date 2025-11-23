@@ -1,0 +1,490 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.11.7, pytest-9.0.1, pluggy-1.6.0 -- C:\Users\henry\.platformio\penv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\henry\Desktop\WishlistOps
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-1.3.0, cov-7.0.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/test_integration.py::test_workflow_handles_rate_limiting DEBUG: last_post check: 2025-11-22 16:43:51.253367+00:00
+FAILED
+
+================================== FAILURES ===================================
+_____________________ test_workflow_handles_rate_limiting _____________________
+
+self = <wishlistops.main.WishlistOpsOrchestrator object at 0x0000023265AD0590>
+commits = [Commit(sha='abc1234', message='Add double jump mechanic', author='Dev', timestamp=datetime.datetime(2025, 11, 23, 19,...(2025, 11, 23, 19, 43, 51, 247047), commit_type=<CommitType.BUGFIX: 'bugfix'>, files_changed=[], screenshot_path=None)]
+
+    async def _generate_announcement(self, commits: list[Commit]) -> AnnouncementDraft:
+        """
+        Generate announcement text using AI.
+    
+        Args:
+            commits: List of commits to generate announcement from
+    
+        Returns:
+            Generated announcement draft
+        """
+        logger.info("Generating announcement with AI")
+    
+        try:
+            # Build context from config
+            context = self._build_ai_context(commits)
+    
+            logger.debug("AI context built", extra={"context_length": len(context)})
+    
+            # Call AI API
+>           result = await self.ai.generate_text(
+                prompt=context,
+                temperature=self.config.ai.temperature
+            )
+
+wishlistops\main.py:312: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\.platformio\penv\Lib\site-packages\tenacity\asyncio\__init__.py:189: in async_wrapped
+    return await copy(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\.platformio\penv\Lib\site-packages\tenacity\asyncio\__init__.py:111: in __call__
+    do = await self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\.platformio\penv\Lib\site-packages\tenacity\asyncio\__init__.py:153: in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\.platformio\penv\Lib\site-packages\tenacity\_utils.py:99: in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+..\..\.platformio\penv\Lib\site-packages\tenacity\__init__.py:400: in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+                                     ^^^^^^^^^^^^^^^^^^^
+..\..\.platformio\python3\Lib\concurrent\futures\_base.py:449: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\.platformio\python3\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\.platformio\penv\Lib\site-packages\tenacity\asyncio\__init__.py:114: in __call__
+    result = await fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <wishlistops.ai_client.AIClient object at 0x00000232655FD6D0>
+prompt = '\nYou are writing a Steam announcement for the game "Test Game".\n\nGAME CONTEXT:\n- Steam App ID: 480\n- Game Name: ...hanged\n- Maintain the specified tone and personality\n\nFORMAT:\nReturn a JSON object with "title" and "body" keys.\n'
+system_instruction = None, temperature = 0.7
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
+        reraise=True
+    )
+    async def generate_text(
+        self,
+        prompt: str,
+        system_instruction: Optional[str] = None,
+        temperature: Optional[float] = None
+    ) -> TextGenerationResult:
+        """
+        Generate announcement text using Gemini 1.5 Pro.
+    
+        Args:
+            prompt: The prompt containing commits and context
+            system_instruction: System instruction for persona/tone
+            temperature: Creativity level (0-1), uses config default if None
+    
+        Returns:
+            TextGenerationResult with title and body
+    
+        Raises:
+            RateLimitError: If rate limit exceeded
+            GenerationError: If generation fails
+            AIError: For other API errors
+        """
+        if not self.session:
+            raise AIError("Client not initialized. Use 'async with' context manager.")
+    
+        temp = temperature if temperature is not None else self.config.temperature
+    
+        logger.info("Generating text with Gemini", extra={
+            "model": self.config.model_text,
+            "temperature": temp,
+            "prompt_length": len(prompt)
+        })
+    
+        # Build request payload
+        payload = {
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {
+                "temperature": temp,
+                "maxOutputTokens": 2048,
+                "topP": 0.95,
+                "topK": 40
+            }
+        }
+    
+        # Add system instruction if provided
+        if system_instruction:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_instruction}]
+            }
+    
+        # Make API call
+        url = f"{self.base_url}/models/{self.config.model_text}:generateContent"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
+        }
+    
+        try:
+            async with self.session.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+    
+                # Handle rate limiting
+                if response.status == 429:
+                    retry_after = response.headers.get('Retry-After', '60')
+                    raise RateLimitError(
+                        f"Rate limit exceeded. Retry after {retry_after}s.\n"
+                        f"Tip: Reduce frequency or upgrade to paid tier."
+                    )
+    
+                # Handle other errors
+                if response.status != 200:
+                    error_text = await response.text()
+>                   raise GenerationError(
+                        f"API error (status {response.status}): {error_text}"
+                    )
+E                   wishlistops.ai_client.GenerationError: API error (status 400): {
+E                     "error": {
+E                       "code": 400,
+E                       "message": "API key not valid. Please pass a valid API key.",
+E                       "status": "INVALID_ARGUMENT",
+E                       "details": [
+E                         {
+E                           "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+E                           "reason": "API_KEY_INVALID",
+E                           "domain": "googleapis.com",
+E                           "metadata": {
+E                             "service": "generativelanguage.googleapis.com"
+E                           }
+E                         },
+E                         {
+E                           "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+E                           "locale": "en-US",
+E                           "message": "API key not valid. Please pass a valid API key."
+E                         }
+E                       ]
+E                     }
+E                   }
+
+wishlistops\ai_client.py:208: GenerationError
+
+The above exception was the direct cause of the following exception:
+
+self = <wishlistops.main.WishlistOpsOrchestrator object at 0x0000023265AD0590>
+
+    async def run(self) -> WorkflowState:
+        """
+        Execute the complete automation workflow.
+    
+        This is the main entry point that orchestrates all steps:
+        1. Parse commits
+        2. Generate content
+        3. Filter quality
+        4. Send for approval
+        5. Update state
+    
+        Returns:
+            WorkflowState with execution results
+    
+        Raises:
+            WorkflowError: If critical step fails
+        """
+        logger.info("="*60)
+        logger.info("Starting WishlistOps workflow execution")
+        logger.info("="*60)
+    
+        workflow_state = WorkflowState(
+            status=WorkflowStatus.SUCCESS,
+            started_at=datetime.now().isoformat()
+        )
+    
+        try:
+            # Step 1: Check if we should run (rate limiting)
+            if not self._should_run():
+                logger.info("Skipping run due to rate limits")
+                workflow_state.status = WorkflowStatus.SKIPPED
+                workflow_state.reason = "rate_limit"
+                workflow_state.completed_at = datetime.now().isoformat()
+                return workflow_state
+    
+            async with self.ai:
+                # Step 2: Parse Git commits
+                commits = await self._parse_commits()
+                if not commits:
+                    logger.info("No new commits found, ending run")
+                    workflow_state.status = WorkflowStatus.SKIPPED
+                    workflow_state.reason = "no_commits"
+                    workflow_state.completed_at = datetime.now().isoformat()
+                    return workflow_state
+    
+                logger.info(f"Found {len(commits)} commits to process")
+    
+                # Step 3: Generate announcement text
+>               draft = await self._generate_announcement(commits)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+wishlistops\main.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <wishlistops.main.WishlistOpsOrchestrator object at 0x0000023265AD0590>
+commits = [Commit(sha='abc1234', message='Add double jump mechanic', author='Dev', timestamp=datetime.datetime(2025, 11, 23, 19,...(2025, 11, 23, 19, 43, 51, 247047), commit_type=<CommitType.BUGFIX: 'bugfix'>, files_changed=[], screenshot_path=None)]
+
+    async def _generate_announcement(self, commits: list[Commit]) -> AnnouncementDraft:
+        """
+        Generate announcement text using AI.
+    
+        Args:
+            commits: List of commits to generate announcement from
+    
+        Returns:
+            Generated announcement draft
+        """
+        logger.info("Generating announcement with AI")
+    
+        try:
+            # Build context from config
+            context = self._build_ai_context(commits)
+    
+            logger.debug("AI context built", extra={"context_length": len(context)})
+    
+            # Call AI API
+            result = await self.ai.generate_text(
+                prompt=context,
+                temperature=self.config.ai.temperature
+            )
+    
+            draft = AnnouncementDraft(
+                title=result['title'],
+                body=result['body'],
+                created_at=datetime.now().isoformat()
+            )
+    
+            logger.info(
+                "Announcement generated successfully",
+                extra={
+                    "title_length": len(draft.title),
+                    "body_length": len(draft.body)
+                }
+            )
+    
+            return draft
+    
+        except Exception as e:
+            logger.error(f"Error generating announcement: {e}", exc_info=True)
+>           raise WorkflowError(f"Failed to generate announcement: {e}") from e
+E           wishlistops.main.WorkflowError: Failed to generate announcement: API error (status 400): {
+E             "error": {
+E               "code": 400,
+E               "message": "API key not valid. Please pass a valid API key.",
+E               "status": "INVALID_ARGUMENT",
+E               "details": [
+E                 {
+E                   "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+E                   "reason": "API_KEY_INVALID",
+E                   "domain": "googleapis.com",
+E                   "metadata": {
+E                     "service": "generativelanguage.googleapis.com"
+E                   }
+E                 },
+E                 {
+E                   "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+E                   "locale": "en-US",
+E                   "message": "API key not valid. Please pass a valid API key."
+E                 }
+E               ]
+E             }
+E           }
+
+wishlistops\main.py:335: WorkflowError
+
+The above exception was the direct cause of the following exception:
+
+config_file = WindowsPath('C:/Users/henry/AppData/Local/Temp/pytest-of-henry/pytest-48/test_workflow_handles_rate_lim0/config.json')
+test_config = Config(version='1.0', steam=SteamConfig(app_id='480', app_name='Test Game'), branding=BrandingConfig(art_style='pixel ...eam_api_key=None, google_ai_key='AIzaSyTestKey1234567890', discord_webhook_url='https://discord.com/api/webhooks/test')
+mock_commits = [Commit(sha='abc1234', message='Add double jump mechanic', author='Dev', timestamp=datetime.datetime(2025, 11, 23, 19,...(2025, 11, 23, 19, 43, 51, 247047), commit_type=<CommitType.BUGFIX: 'bugfix'>, files_changed=[], screenshot_path=None)]
+tmp_path = WindowsPath('C:/Users/henry/AppData/Local/Temp/pytest-of-henry/pytest-48/test_workflow_handles_rate_lim0')
+
+    @pytest.mark.asyncio
+    async def test_workflow_handles_rate_limiting(config_file: Path, test_config: Config, mock_commits: list[Commit], tmp_path: Path):
+        """Test workflow respects rate limits."""
+        from datetime import timezone
+    
+        state_path = tmp_path / "state.json"
+        state = StateManager(state_path)
+    
+        # Simulate recent post (yesterday)
+        recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        state.state.last_post_date = recent_date
+        state._save()
+    
+        with patch('wishlistops.main.load_config', return_value=test_config), \
+             patch.object(GitParser, 'get_player_facing_commits', return_value=mock_commits):
+    
+            orchestrator = WishlistOpsOrchestrator(config_file, dry_run=True)
+            orchestrator.state = state
+    
+            # Try to run (should be rate limited - need 7 days)
+>           result = await orchestrator.run()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_integration.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <wishlistops.main.WishlistOpsOrchestrator object at 0x0000023265AD0590>
+
+    async def run(self) -> WorkflowState:
+        """
+        Execute the complete automation workflow.
+    
+        This is the main entry point that orchestrates all steps:
+        1. Parse commits
+        2. Generate content
+        3. Filter quality
+        4. Send for approval
+        5. Update state
+    
+        Returns:
+            WorkflowState with execution results
+    
+        Raises:
+            WorkflowError: If critical step fails
+        """
+        logger.info("="*60)
+        logger.info("Starting WishlistOps workflow execution")
+        logger.info("="*60)
+    
+        workflow_state = WorkflowState(
+            status=WorkflowStatus.SUCCESS,
+            started_at=datetime.now().isoformat()
+        )
+    
+        try:
+            # Step 1: Check if we should run (rate limiting)
+            if not self._should_run():
+                logger.info("Skipping run due to rate limits")
+                workflow_state.status = WorkflowStatus.SKIPPED
+                workflow_state.reason = "rate_limit"
+                workflow_state.completed_at = datetime.now().isoformat()
+                return workflow_state
+    
+            async with self.ai:
+                # Step 2: Parse Git commits
+                commits = await self._parse_commits()
+                if not commits:
+                    logger.info("No new commits found, ending run")
+                    workflow_state.status = WorkflowStatus.SKIPPED
+                    workflow_state.reason = "no_commits"
+                    workflow_state.completed_at = datetime.now().isoformat()
+                    return workflow_state
+    
+                logger.info(f"Found {len(commits)} commits to process")
+    
+                # Step 3: Generate announcement text
+                draft = await self._generate_announcement(commits)
+                logger.info(f"Generated announcement: {draft.title}")
+    
+                # Step 4: Filter content for quality
+                draft = await self._filter_content(draft)
+                logger.info("Content passed quality filter")
+    
+                # Step 5: Generate and composite banner
+                if self.config.branding and self.compositor:
+                    draft = await self._create_banner(draft, commits)
+                    logger.info("Banner generated successfully")
+    
+                # Step 6: Send to Discord for approval
+                await self._send_for_approval(draft)
+                logger.info("Sent to Discord for approval")
+    
+                # Step 7: Update state
+                self.state.update_last_run(draft)
+                logger.info("State updated successfully")
+    
+                workflow_state.status = WorkflowStatus.SUCCESS
+                workflow_state.draft = draft
+                workflow_state.completed_at = datetime.now().isoformat()
+    
+                logger.info("="*60)
+                logger.info("\u2705 Workflow completed successfully")
+                logger.info("="*60)
+    
+                return workflow_state
+    
+        except Exception as e:
+            logger.error(f"\u274c Workflow failed: {e}", exc_info=True)
+            workflow_state.status = WorkflowStatus.FAILED
+            workflow_state.error = str(e)
+            workflow_state.completed_at = datetime.now().isoformat()
+    
+            try:
+                await self.notifier.send_error(str(e))
+            except Exception as notify_error:
+                logger.error(f"Failed to send error notification: {notify_error}")
+    
+>           raise WorkflowError(f"Workflow failed: {e}") from e
+E           wishlistops.main.WorkflowError: Workflow failed: Failed to generate announcement: API error (status 400): {
+E             "error": {
+E               "code": 400,
+E               "message": "API key not valid. Please pass a valid API key.",
+E               "status": "INVALID_ARGUMENT",
+E               "details": [
+E                 {
+E                   "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+E                   "reason": "API_KEY_INVALID",
+E                   "domain": "googleapis.com",
+E                   "metadata": {
+E                     "service": "generativelanguage.googleapis.com"
+E                   }
+E                 },
+E                 {
+E                   "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+E                   "locale": "en-US",
+E                   "message": "API key not valid. Please pass a valid API key."
+E                 }
+E               ]
+E             }
+E           }
+
+wishlistops\main.py:215: WorkflowError
+------------------------------ Captured log call ------------------------------
+ERROR    wishlistops.git_parser:git_parser.py:84 Not a Git repository\nWARNING  wishlistops.main:main.py:106 Config directory is not inside a Git repository; falling back to current working directory\nWARNING  wishlistops.main:main.py:253 Error parsing last post date: fromisoformat: argument must be str, allowing run\nERROR    wishlistops.main:main.py:334 Error generating announcement: API error (status 400): {\n  "error": {\n    "code": 400,\n    "message": "API key not valid. Please pass a valid API key.",\n    "status": "INVALID_ARGUMENT",\n    "details": [\n      {\n        "@type": "type.googleapis.com/google.rpc.ErrorInfo",\n        "reason": "API_KEY_INVALID",\n        "domain": "googleapis.com",\n        "metadata": {\n          "service": "generativelanguage.googleapis.com"\n        }\n      },\n      {\n        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",\n        "locale": "en-US",\n        "message": "API key not valid. Please pass a valid API key."\n      }\n    ]\n  }\n}\nTraceback (most recent call last):\n  File "C:\\Users\\henry\\Desktop\\WishlistOps\\wishlistops\\main.py", line 312, in _generate_announcement\n    result = await self.ai.generate_text(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 189, in async_wrapped\n    return await copy(fn, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 111, in __call__\n    do = await self.iter(retry_state=retry_state)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 153, in iter\n    result = await action(retry_state)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\_utils.py", line 99, in inner\n    return call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\__init__.py", line 400, in <lambda>\n    self._add_action_func(lambda rs: rs.outcome.result())\n                                     ^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\python3\\Lib\\concurrent\\futures\\_base.py", line 449, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\python3\\Lib\\concurrent\\futures\\_base.py", line 401, in __get_result\n    raise self._exception\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 114, in __call__\n    result = await fn(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\Desktop\\WishlistOps\\wishlistops\\ai_client.py", line 208, in generate_text\n    raise GenerationError(\nwishlistops.ai_client.GenerationError: API error (status 400): {\n  "error": {\n    "code": 400,\n    "message": "API key not valid. Please pass a valid API key.",\n    "status": "INVALID_ARGUMENT",\n    "details": [\n      {\n        "@type": "type.googleapis.com/google.rpc.ErrorInfo",\n        "reason": "API_KEY_INVALID",\n        "domain": "googleapis.com",\n        "metadata": {\n          "service": "generativelanguage.googleapis.com"\n        }\n      },\n      {\n        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",\n        "locale": "en-US",\n        "message": "API key not valid. Please pass a valid API key."\n      }\n    ]\n  }\n}\n\nERROR    wishlistops.main:main.py:205 \u274c Workflow failed: Failed to generate announcement: API error (status 400): {\n  "error": {\n    "code": 400,\n    "message": "API key not valid. Please pass a valid API key.",\n    "status": "INVALID_ARGUMENT",\n    "details": [\n      {\n        "@type": "type.googleapis.com/google.rpc.ErrorInfo",\n        "reason": "API_KEY_INVALID",\n        "domain": "googleapis.com",\n        "metadata": {\n          "service": "generativelanguage.googleapis.com"\n        }\n      },\n      {\n        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",\n        "locale": "en-US",\n        "message": "API key not valid. Please pass a valid API key."\n      }\n    ]\n  }\n}\nTraceback (most recent call last):\n  File "C:\\Users\\henry\\Desktop\\WishlistOps\\wishlistops\\main.py", line 312, in _generate_announcement\n    result = await self.ai.generate_text(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 189, in async_wrapped\n    return await copy(fn, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 111, in __call__\n    do = await self.iter(retry_state=retry_state)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 153, in iter\n    result = await action(retry_state)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\_utils.py", line 99, in inner\n    return call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\__init__.py", line 400, in <lambda>\n    self._add_action_func(lambda rs: rs.outcome.result())\n                                     ^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\python3\\Lib\\concurrent\\futures\\_base.py", line 449, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\.platformio\\python3\\Lib\\concurrent\\futures\\_base.py", line 401, in __get_result\n    raise self._exception\n  File "C:\\Users\\henry\\.platformio\\penv\\Lib\\site-packages\\tenacity\\asyncio\\__init__.py", line 114, in __call__\n    result = await fn(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\Desktop\\WishlistOps\\wishlistops\\ai_client.py", line 208, in generate_text\n    raise GenerationError(\nwishlistops.ai_client.GenerationError: API error (status 400): {\n  "error": {\n    "code": 400,\n    "message": "API key not valid. Please pass a valid API key.",\n    "status": "INVALID_ARGUMENT",\n    "details": [\n      {\n        "@type": "type.googleapis.com/google.rpc.ErrorInfo",\n        "reason": "API_KEY_INVALID",\n        "domain": "googleapis.com",\n        "metadata": {\n          "service": "generativelanguage.googleapis.com"\n        }\n      },\n      {\n        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",\n        "locale": "en-US",\n        "message": "API key not valid. Please pass a valid API key."\n      }\n    ]\n  }\n}\n\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "C:\\Users\\henry\\Desktop\\WishlistOps\\wishlistops\\main.py", line 174, in run\n    draft = await self._generate_announcement(commits)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "C:\\Users\\henry\\Desktop\\WishlistOps\\wishlistops\\main.py", line 335, in _generate_announcement\n    raise WorkflowError(f"Failed to generate announcement: {e}") from e\nwishlistops.main.WorkflowError: Failed to generate announcement: API error (status 400): {\n  "error": {\n    "code": 400,\n    "message": "API key not valid. Please pass a valid API key.",\n    "status": "INVALID_ARGUMENT",\n    "details": [\n      {\n        "@type": "type.googleapis.com/google.rpc.ErrorInfo",\n        "reason": "API_KEY_INVALID",\n        "domain": "googleapis.com",\n        "metadata": {\n          "service": "generativelanguage.googleapis.com"\n        }\n      },\n      {\n        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",\n        "locale": "en-US",\n        "message": "API key not valid. Please pass a valid API key."\n      }\n    ]\n  }\n}
+=========================== short test summary info ===========================
+FAILED tests/test_integration.py::test_workflow_handles_rate_limiting - wishlistops.main.WorkflowError: Workflow failed: Failed to generate announcement: API error (status 400): {
+  "error": {
+    "code": 400,
+    "message": "API key not valid. Please pass a valid API key.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "API_KEY_INVALID",
+        "domain": "googleapis.com",
+        "metadata": {
+          "service": "generativelanguage.googleapis.com"
+        }
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+        "locale": "en-US",
+        "message": "API key not valid. Please pass a valid API key."
+      }
+    ]
+  }
+}
+============================== 1 failed in 3.70s ==============================

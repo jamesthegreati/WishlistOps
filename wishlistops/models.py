@@ -292,23 +292,20 @@ class Config(BaseModel):
 
 
 class Commit(BaseModel):
-    """
-    Represents a Git commit.
-    
-    Attributes:
-        sha: Commit SHA hash
-        message: Commit message
-        author: Commit author name
-        timestamp: Commit timestamp
-        commit_type: Classification of commit type
-    """
+    """Represents a Git commit used for AI context building."""
+
     model_config = ConfigDict(extra='forbid')
-    
+
     sha: str = Field(..., min_length=7, max_length=40, description="Commit SHA")
     message: str = Field(..., min_length=1, description="Commit message")
     author: str = Field(..., min_length=1, description="Commit author")
     timestamp: datetime = Field(..., description="Commit timestamp")
     commit_type: CommitType = Field(CommitType.INTERNAL, description="Commit classification")
+    files_changed: list[str] = Field(default_factory=list, description="Files touched by the commit")
+    screenshot_path: Optional[str] = Field(
+        default=None,
+        description="Path to a deterministic screenshot artifact discovered in the commit",
+    )
 
 
 class AnnouncementDraft(BaseModel):
@@ -327,7 +324,8 @@ class AnnouncementDraft(BaseModel):
     
     title: str = Field(..., min_length=1, max_length=200, description="Announcement title")
     body: str = Field(..., min_length=10, max_length=10000, description="Announcement body")
-    banner_url: Optional[str] = Field(None, description="Banner image URL")
+    banner_url: Optional[str] = Field(None, description="Banner image URL or local path")
+    banner_path: Optional[str] = Field(None, description="Local filesystem path to banner for uploads")
     created_at: str = Field(..., description="Creation timestamp (ISO format)")
     approved: bool = Field(False, description="Approval status")
     approved_at: Optional[str] = Field(None, description="Approval timestamp")

@@ -11,7 +11,7 @@ Philosophy: Git as Database - all state is version controlled
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from filelock import FileLock
@@ -74,8 +74,8 @@ class StateData(BaseModel):
     
     # Metadata
     version: str = "1.0"
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class StateManager:
@@ -179,7 +179,7 @@ class StateManager:
             error: Error message if failed
         """
         with FileLock(str(self.lock_path)):
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             
             # Update last run info
             self.state.last_run_timestamp = now
@@ -234,7 +234,7 @@ class StateManager:
             title: Title of posted announcement
         """
         with FileLock(str(self.lock_path)):
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             
             self.state.last_post_date = now
             self.state.last_post_title = title
@@ -258,7 +258,11 @@ class StateManager:
             return None
         
         try:
-            return datetime.fromisoformat(self.state.last_post_date)
+            dt = datetime.fromisoformat(self.state.last_post_date)
+            # Ensure datetime is timezone-aware
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except ValueError:
             logger.warning(f"Invalid last_post_date format: {self.state.last_post_date}")
             return None
@@ -283,7 +287,7 @@ class StateManager:
         if not last_post:
             return None
         
-        delta = datetime.utcnow() - last_post
+        delta = datetime.now(timezone.utc) - last_post
         return delta.total_seconds() / 86400  # Convert to days
     
     def should_allow_post(self, min_days: int) -> bool:
@@ -370,7 +374,7 @@ class StateManager:
     
     def _create_backup(self) -> None:
         """Create backup of current state file."""
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         backup_path = self.backup_dir / f"state_{timestamp}.json"
         
         try:

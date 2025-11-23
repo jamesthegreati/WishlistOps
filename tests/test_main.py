@@ -3,6 +3,7 @@ Tests for WishlistOps main orchestrator.
 """
 
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,6 +24,14 @@ from wishlistops.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def setup_test_env(monkeypatch):
+    """Set up test environment variables."""
+    monkeypatch.setenv("STEAM_API_KEY", "test_steam_key_123")
+    monkeypatch.setenv("GOOGLE_AI_KEY", "AIzaSyDa72_KupovBOUfKCnppgb08GuTcXpj2QI")
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/123/test")
+
+
 @pytest.fixture
 def mock_config(tmp_path: Path) -> Config:
     """Create a mock configuration for testing."""
@@ -37,7 +46,7 @@ def mock_config(tmp_path: Path) -> Config:
             color_palette=["#FF6B6B", "#4ECDC4"],
             logo_position="top-right"
         ),
-        google_ai_key="test_key_1234567890",
+        google_ai_key="AIzaSyTestKey1234567890123456789012",
         discord_webhook_url="https://discord.com/api/webhooks/123/abc",
         voice=VoiceConfig(
             personality="friendly",
@@ -96,7 +105,7 @@ async def test_workflow_skips_on_no_commits(mock_config_file: Path) -> None:
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
     # Mock git parser to return empty list
-    with patch.object(orch.git, 'get_commits_since', return_value=[]):
+    with patch.object(orch.git, 'get_player_facing_commits', return_value=[]):
         result = await orch.run()
         
         assert result.status == WorkflowStatus.SKIPPED
@@ -125,15 +134,18 @@ async def test_workflow_skips_on_rate_limit(mock_config_file: Path) -> None:
 @pytest.mark.asyncio
 async def test_workflow_success_flow(mock_config_file: Path) -> None:
     """Test successful workflow execution."""
+    from datetime import datetime
+    from wishlistops.models import CommitType
+    
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
     # Create mock commits
     mock_commits = [
         Commit(
-            sha="abc123",
+            sha="abc1234",
             message="Add new feature",
             author="Test User",
-            timestamp=pytest.importorskip("datetime").datetime.now(),
+            timestamp=datetime.now(),
             commit_type=CommitType.FEATURE
         )
         for _ in range(5)
@@ -141,8 +153,7 @@ async def test_workflow_success_flow(mock_config_file: Path) -> None:
     
     # Mock all the components
     with patch.object(orch.state, 'get_last_post_date', return_value=None), \
-         patch.object(orch.git, 'get_commits_since', return_value=mock_commits), \
-         patch.object(orch.git, 'is_player_facing', return_value=True), \
+         patch.object(orch.git, 'get_player_facing_commits', return_value=mock_commits), \
          patch.object(
              orch.ai, 
              'generate_text', 
@@ -166,23 +177,25 @@ async def test_workflow_success_flow(mock_config_file: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_workflow_handles_ai_failure(mock_config_file: Path) -> None:
-    """Test workflow handles AI generation failure."""
+    """Test workflow handles AI generation failures."""
+    from datetime import datetime
+    from wishlistops.models import CommitType
+    
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
     mock_commits = [
         Commit(
-            sha="abc123",
-            message="Test",
+            sha="abc1234",
+            message="Test commit",
             author="Test",
-            timestamp=pytest.importorskip("datetime").datetime.now(),
+            timestamp=datetime.now(),
             commit_type=CommitType.FEATURE
         )
     ] * 5
     
     # Mock AI to raise an exception
     with patch.object(orch.state, 'get_last_post_date', return_value=None), \
-         patch.object(orch.git, 'get_commits_since', return_value=mock_commits), \
-         patch.object(orch.git, 'is_player_facing', return_value=True), \
+         patch.object(orch.git, 'get_player_facing_commits', return_value=mock_commits), \
          patch.object(
              orch.ai, 
              'generate_text', 
@@ -202,14 +215,17 @@ async def test_workflow_handles_ai_failure(mock_config_file: Path) -> None:
 @pytest.mark.asyncio
 async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> None:
     """Test workflow regenerates content when filter finds issues."""
+    from datetime import datetime
+    from wishlistops.models import CommitType
+    
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
     mock_commits = [
         Commit(
-            sha="abc123",
+            sha="abc1234",
             message="Test",
-            author="Test",
-            timestamp=pytest.importorskip("datetime").datetime.now(),
+            author="Dev",
+            timestamp=datetime.now(),
             commit_type=CommitType.FEATURE
         )
     ] * 5
@@ -225,8 +241,7 @@ async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> 
             return {'title': 'Second attempt', 'body': 'Clean content here'}
     
     with patch.object(orch.state, 'get_last_post_date', return_value=None), \
-         patch.object(orch.git, 'get_commits_since', return_value=mock_commits), \
-         patch.object(orch.git, 'is_player_facing', return_value=True), \
+         patch.object(orch.git, 'get_player_facing_commits', return_value=mock_commits), \
          patch.object(
              orch.ai,
              'generate_text',
@@ -250,39 +265,27 @@ async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> 
 
 def test_build_ai_context(mock_config_file: Path) -> None:
     """Test AI context building."""
+    from datetime import datetime
+    from wishlistops.models import CommitType
+    
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
-    mock_commits = [
+    commits = [
         Commit(
-            sha="abc123",
-            message="Add feature X",
-            author="Dev User",
-            timestamp=pytest.importorskip("datetime").datetime.now(),
+            sha="abc1234",
+            message="Add feature",
+            author="Dev",
+            timestamp=datetime.now(),
             commit_type=CommitType.FEATURE
         )
     ]
     
-    context = orch._build_ai_context(mock_commits)
+    context = orch._build_ai_context(commits)
     
     assert "Test Game" in context
-    assert "Add feature X" in context
+    assert "Add feature" in context
     assert "friendly" in context.lower() or "casual" in context.lower()
 
-
-def test_build_image_prompt(mock_config_file: Path) -> None:
-    """Test image prompt building."""
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
-    
-    draft = AnnouncementDraft(
-        title="New Update!",
-        body="Great new features",
-        created_at="2025-11-20T10:00:00"
-    )
-    
-    prompt = orch._build_image_prompt(draft)
-    
-    assert "New Update!" in prompt
-    assert "16:9" in prompt
 
 
 def test_should_run_with_no_previous_posts(mock_config_file: Path) -> None:

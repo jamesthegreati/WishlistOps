@@ -30,6 +30,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from git.exc import InvalidGitRepositoryError
+
 from .config_manager import load_config
 from .models import Config, WorkflowState, AnnouncementDraft, Commit, WorkflowStatus
 from .git_parser import GitParser
@@ -96,10 +98,21 @@ class WishlistOpsOrchestrator:
         # Initialize all components
         # Git parser needs repo root, not config directory
         repo_root = config_path.parent.parent if config_path.parent.name == "wishlistops" else config_path.parent
-        self.git = GitParser(repo_root)
+        try:
+            self.git = GitParser(repo_root)
+            self.repo_root = self.git.repo_path
+        except InvalidGitRepositoryError:
+            fallback_root = Path.cwd()
+            logger.warning(
+                "Config directory is not inside a Git repository; falling back to current working directory",
+                extra={"config_path": str(config_path), "fallback": str(fallback_root)}
+            )
+            self.git = GitParser(fallback_root)
+            self.repo_root = self.git.repo_path
+
         self.ai = AIClient(
             api_key=self.config.google_ai_key,
-            model_config=self.config.ai
+            config=self.config.ai
         )
         self.filter = ContentFilter(self.config.voice)
         self.compositor = ImageCompositor(self.config.branding) if self.config.branding else None
@@ -145,47 +158,48 @@ class WishlistOpsOrchestrator:
                 workflow_state.completed_at = datetime.now().isoformat()
                 return workflow_state
             
-            # Step 2: Parse Git commits
-            commits = await self._parse_commits()
-            if not commits:
-                logger.info("No new commits found, ending run")
-                workflow_state.status = WorkflowStatus.SKIPPED
-                workflow_state.reason = "no_commits"
+            async with self.ai:
+                # Step 2: Parse Git commits
+                commits = await self._parse_commits()
+                if not commits:
+                    logger.info("No new commits found, ending run")
+                    workflow_state.status = WorkflowStatus.SKIPPED
+                    workflow_state.reason = "no_commits"
+                    workflow_state.completed_at = datetime.now().isoformat()
+                    return workflow_state
+                
+                logger.info(f"Found {len(commits)} commits to process")
+                
+                # Step 3: Generate announcement text
+                draft = await self._generate_announcement(commits)
+                logger.info(f"Generated announcement: {draft.title}")
+                
+                # Step 4: Filter content for quality
+                draft = await self._filter_content(draft)
+                logger.info("Content passed quality filter")
+                
+                # Step 5: Generate and composite banner
+                if self.config.branding and self.compositor:
+                    draft = await self._create_banner(draft, commits)
+                    logger.info("Banner generated successfully")
+                
+                # Step 6: Send to Discord for approval
+                await self._send_for_approval(draft)
+                logger.info("Sent to Discord for approval")
+                
+                # Step 7: Update state
+                self.state.update_last_run(draft)
+                logger.info("State updated successfully")
+                
+                workflow_state.status = WorkflowStatus.SUCCESS
+                workflow_state.draft = draft
                 workflow_state.completed_at = datetime.now().isoformat()
+                
+                logger.info("="*60)
+                logger.info("✅ Workflow completed successfully")
+                logger.info("="*60)
+                
                 return workflow_state
-            
-            logger.info(f"Found {len(commits)} commits to process")
-            
-            # Step 3: Generate announcement text
-            draft = await self._generate_announcement(commits)
-            logger.info(f"Generated announcement: {draft.title}")
-            
-            # Step 4: Filter content for quality
-            draft = await self._filter_content(draft)
-            logger.info("Content passed quality filter")
-            
-            # Step 5: Generate and composite banner
-            if self.config.branding and self.compositor:
-                draft = await self._create_banner(draft)
-                logger.info("Banner generated successfully")
-            
-            # Step 6: Send to Discord for approval
-            await self._send_for_approval(draft)
-            logger.info("Sent to Discord for approval")
-            
-            # Step 7: Update state
-            self.state.update_last_run(draft)
-            logger.info("State updated successfully")
-            
-            workflow_state.status = WorkflowStatus.SUCCESS
-            workflow_state.draft = draft
-            workflow_state.completed_at = datetime.now().isoformat()
-            
-            logger.info("="*60)
-            logger.info("✅ Workflow completed successfully")
-            logger.info("="*60)
-            
-            return workflow_state
             
         except Exception as e:
             logger.error(f"❌ Workflow failed: {e}", exc_info=True)
@@ -207,14 +221,19 @@ class WishlistOpsOrchestrator:
         Returns:
             True if OK to run, False if rate limited
         """
-        last_post = self.state.get_last_post_date()
-        if not last_post:
+        last_post_dt = self.state.get_last_post_date()
+        if not last_post_dt:
             logger.info("No previous posts found, OK to run")
             return True
         
         try:
-            last_post_dt = datetime.fromisoformat(last_post)
-            days_since = (datetime.now() - last_post_dt).days
+            # Handle timezone awareness
+            if last_post_dt.tzinfo:
+                now = datetime.now(last_post_dt.tzinfo)
+            else:
+                now = datetime.now()
+            
+            days_since = (now - last_post_dt).days
             min_days = self.config.automation.min_days_between_posts
             
             if days_since < min_days:
@@ -277,6 +296,14 @@ class WishlistOpsOrchestrator:
         Returns:
             Generated announcement draft
         """
+        if self.dry_run:
+            logger.info("Dry run: Skipping AI generation")
+            return AnnouncementDraft(
+                title="Dry Run Announcement",
+                body="This is a dry run announcement body generated without AI.",
+                created_at=datetime.now().isoformat()
+            )
+
         logger.info("Generating announcement with AI")
         
         try:
@@ -324,18 +351,19 @@ class WishlistOpsOrchestrator:
         logger.info("Filtering content for quality")
         
         try:
-            issues = self.filter.check(draft.body)
+            # Check content quality
+            result = self.filter.check(draft.body)
             
-            if issues:
+            if not result.passed:
                 logger.warning(
-                    f"Found {len(issues)} quality issues: {issues}",
-                    extra={"issues": issues}
+                    f"Found {len(result.issues)} quality issues: {result.issues}",
+                    extra={"issues": result.issues, "score": result.score}
                 )
                 # Regenerate with stricter prompt
-                draft = await self._regenerate_with_fixes(draft, issues)
+                draft = await self._regenerate_with_fixes(draft, result.issues)
                 logger.info("Content regenerated with fixes")
             else:
-                logger.info("Content passed quality filter")
+                logger.info(f"Content passed quality filter (score: {result.score:.2f})")
             
             return draft
             
@@ -396,12 +424,13 @@ Personality: {self.config.voice.personality}
             logger.warning("Returning original draft due to regeneration failure")
             return draft
     
-    async def _create_banner(self, draft: AnnouncementDraft) -> AnnouncementDraft:
+    async def _create_banner(self, draft: AnnouncementDraft, commits: list[Commit]) -> AnnouncementDraft:
         """
         Generate and composite banner image.
         
         Args:
             draft: Announcement draft to create banner for
+            commits: Commits associated with this announcement
             
         Returns:
             Draft with banner_url populated
@@ -409,32 +438,30 @@ Personality: {self.config.voice.personality}
         logger.info("Generating banner image")
         
         try:
-            # Generate base image with AI
-            image_prompt = self._build_image_prompt(draft)
-            
-            logger.debug("Image prompt built", extra={"prompt_length": len(image_prompt)})
-            
-            base_image = await self.ai.generate_image(
-                prompt=image_prompt,
-                aspect_ratio="16:9"
-            )
+            base_image_bytes = self._load_deterministic_screenshot(commits)
+            if not base_image_bytes:
+                logger.warning("No deterministic screenshot found; skipping banner creation")
+                draft.banner_url = None
+                draft.banner_path = None
+                return draft
+            logger.info("Using deterministic screenshot for banner")
             
             # Composite logo if compositor available
-            if self.compositor and self.config.branding and self.config.branding.logo_path:
-                final_image = self.compositor.add_logo(
-                    base_image,
-                    logo_path=self.config.branding.logo_path
+            final_image = base_image_bytes
+            if self.compositor and self.config.branding:
+                logo_path = Path(self.config.branding.logo_path) if self.config.branding.logo_path else None
+                final_image = self.compositor.composite_logo(
+                    base_image_bytes,
+                    logo_path=logo_path
                 )
                 logger.info("Logo composited successfully")
-            else:
-                final_image = base_image
-                logger.info("No logo compositing (logo not configured)")
             
             # Save and get URL
-            banner_url = self._save_banner(final_image)
-            draft.banner_url = banner_url
+            banner_path = self._save_banner(final_image)
+            draft.banner_url = banner_path
+            draft.banner_path = banner_path
             
-            logger.info(f"Banner saved: {banner_url}")
+            logger.info(f"Banner saved: {banner_path}")
             
             return draft
             
@@ -442,7 +469,56 @@ Personality: {self.config.voice.personality}
             logger.error(f"Error creating banner: {e}", exc_info=True)
             # Non-critical error, continue without banner
             logger.warning("Continuing without banner image")
+            draft.banner_url = None
+            draft.banner_path = None
             return draft
+
+    def _load_deterministic_screenshot(self, commits: list[Commit]) -> Optional[bytes]:
+        """Return screenshot bytes using explicit or implicit commit attachment."""
+        for commit in commits:
+            screenshot_attr = getattr(commit, "screenshot_path", None)
+            if not screenshot_attr:
+                continue
+            path = Path(str(screenshot_attr))
+            if path.exists():
+                try:
+                    return path.read_bytes()
+                except OSError as exc:
+                    logger.warning("Failed to read screenshot", extra={"path": str(path), "error": str(exc)})
+        fallback = self._find_recent_screenshot()
+        if fallback:
+            try:
+                return fallback.read_bytes()
+            except OSError as exc:
+                logger.warning("Failed to read fallback screenshot", extra={"path": str(fallback), "error": str(exc)})
+        return None
+
+    def _find_recent_screenshot(self) -> Optional[Path]:
+        search_dirs = [
+            self.repo_root / "screenshots",
+            self.repo_root / "wishlistops" / "screenshots",
+            self.repo_root / "promo",
+        ]
+        candidates: list[Path] = []
+        for directory in search_dirs:
+            if not directory.exists():
+                continue
+            for path in directory.rglob("*"):
+                if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                    candidates.append(path)
+        if not candidates:
+            return None
+
+        def _mtime(path: Path) -> float:
+            try:
+                return path.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        candidates.sort(key=_mtime, reverse=True)
+        logger.info("Using most recent screenshot from disk", extra={"path": str(candidates[0])})
+        return candidates[0]
+
     
     async def _send_for_approval(self, draft: AnnouncementDraft) -> None:
         """
@@ -458,6 +534,7 @@ Personality: {self.config.voice.personality}
                 title=draft.title,
                 body=draft.body,
                 banner_url=draft.banner_url,
+                banner_path=draft.banner_path,
                 game_name=self.config.steam.app_name,
                 tag=self.state.get_last_tag(),
                 steam_app_id=self.config.steam.app_id
@@ -482,8 +559,9 @@ Personality: {self.config.voice.personality}
         # Format commits
         commit_summaries = []
         for commit in commits:
+            commit_type_value = getattr(commit.commit_type, "value", commit.commit_type)
             commit_summaries.append(
-                f"- [{commit.commit_type.value}] {commit.message} (by {commit.author})"
+                f"- [{commit_type_value}] {commit.message} (by {commit.author})"
             )
         
         commits_text = "\n".join(commit_summaries)
@@ -518,40 +596,6 @@ Return a JSON object with "title" and "body" keys.
         
         return prompt
     
-    def _build_image_prompt(self, draft: AnnouncementDraft) -> str:
-        """
-        Build image generation prompt.
-        
-        Args:
-            draft: Announcement draft to create image for
-            
-        Returns:
-            Image generation prompt
-        """
-        if not self.config.branding:
-            return f"Game announcement banner for: {draft.title}"
-        
-        colors_text = ""
-        if self.config.branding.color_palette:
-            colors_text = f"\nCOLOR PALETTE: {', '.join(self.config.branding.color_palette)}"
-        
-        prompt = f"""
-Create a game announcement banner image with the following specifications:
-
-CONTENT: {draft.title}
-
-ARTISTIC STYLE: {self.config.branding.art_style}
-{colors_text}
-
-REQUIREMENTS:
-- Aspect ratio: 16:9 (widescreen)
-- High quality, suitable for Steam
-- Visually appealing and eye-catching
-- Leave space in {self.config.branding.logo_position.value} for logo overlay
-- Professional game marketing aesthetic
-"""
-        
-        return prompt
     
     def _save_banner(self, image_data: bytes) -> str:
         """

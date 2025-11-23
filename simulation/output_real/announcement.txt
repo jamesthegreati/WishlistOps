@@ -1,0 +1,22 @@
+TITLE: Big Fixes & New Co-op UI in Latest Update for My Indie Game!
+
+Hey everyone!
+
+We’ve been hard at work squashing bugs and rolling out some highly requested features for *My Indie Game*. We're excited to share what’s new in this latest build!
+
+First off, for all you completionists out there, we’ve successfully integrated the **achievement tracking backend**! Start earning those bragging rights—your progress should now be recorded correctly.
+
+We know stability is key, so we’ve focused heavily on fixes this round:
+
+*   We’ve eliminated a nasty **crash that was occurring during level transitions**. You should now be able to move between areas much more smoothly. (Note: We actually caught and fixed this specific crash twice to ensure it’s truly gone!)
+*   We've also significantly **improved particle performance**. If you noticed any slowdowns during intense visual moments, this should give you a nice frame rate boost!
+
+On the feature front, the next big addition is here: we’ve implemented the **Co-op Lobby UI**! Getting your friends together for some multiplayer mayhem should now be much more intuitive and visually clear. We can’t wait to see you all playing together!
+
+*(P.S. Behind the scenes, we also completed a major refactor of our inventory serialization to make future updates even faster, but the real win for you is the stability and new lobby screen!)*
+
+Thanks as always for playing *My Indie Game*. Your feedback drives these updates, so keep it coming!
+
+Happy gaming!
+
+The *My Indie Game* Development Team

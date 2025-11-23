@@ -155,8 +155,27 @@ class ImageCompositor:
         
         logger.debug(f"Resizing from {image.size} to {target_size}")
         
-        # Use high-quality Lanczos resampling
-        return image.resize(target_size, Resampling.LANCZOS)
+        cropped = self._smart_crop(image, *target_size)
+        return cropped.resize(target_size, Resampling.LANCZOS)
+
+    def _smart_crop(self, image: Image.Image, target_width: int, target_height: int) -> Image.Image:
+        """Crop the image to target aspect ratio without distortion."""
+        target_ratio = target_width / target_height
+        current_ratio = image.width / image.height
+
+        if abs(current_ratio - target_ratio) < 1e-3:
+            return image
+
+        if current_ratio > target_ratio:
+            new_width = int(image.height * target_ratio)
+            offset = max((image.width - new_width) // 2, 0)
+            box = (offset, 0, offset + new_width, image.height)
+        else:
+            new_height = int(image.width / target_ratio)
+            offset = max((image.height - new_height) // 2, 0)
+            box = (0, offset, image.width, offset + new_height)
+
+        return image.crop(box)
     
     def _load_and_prepare_logo(self, logo_path: Path) -> Image.Image:
         """
