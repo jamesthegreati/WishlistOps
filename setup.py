@@ -32,6 +32,8 @@ setup(
         "structlog>=23.2.0",
         "python-json-logger>=2.0.7",
         "orjson>=3.9.0",
+        "aiohttp-session>=2.12.0",
+        "cryptography>=41.0.0",
     ],
     extras_require={
         "dev": [
@@ -46,6 +48,22 @@ setup(
             "black>=23.11.0",
             "isort>=5.12.0",
             "flake8>=6.1.0",
+        ],
+        "web": [
+            "aiohttp>=3.9.0",
+            "aiohttp-cors>=0.7.0",
+            "aiohttp-session>=2.12.0",
+            "cryptography>=41.0.0",
         ]
     },
+    entry_points={
+        "console_scripts": [
+            "wishlistops=wishlistops.__main__:main_cli",
+            "wishlistops-web=wishlistops.__main__:launch_web_interface",
+        ],
+    },
+    package_data={
+        "wishlistops": ["../dashboard/*.*", "../dashboard/**/*.*"],
+    },
+    include_package_data=True,
 )
