@@ -74,6 +74,9 @@ dev = [
     "isort>=5.12.0",
     "flake8>=6.1.0",
 ]
+web = [
+    "aiohttp-cors>=0.7.0"
+]
 
 [project.urls]
 Homepage = "https://github.com/jamesthegreati/WishlistOps"
@@ -84,6 +87,7 @@ Changelog = "https://github.com/jamesthegreati/WishlistOps/blob/main/CHANGELOG.m
 
 [project.scripts]
 wishlistops = "wishlistops.main:main"
+wishlistops-web = "wishlistops.__main__:launch_web_interface"
 
 [tool.setuptools]
 packages = ["wishlistops"]

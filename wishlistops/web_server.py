@@ -21,7 +21,7 @@ from aiohttp import web
 from aiohttp_session import setup as setup_session, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
-from .config_manager import load_config, save_config
+from .config_manager import load_config, save_config, ConfigurationError
 from .state_manager import StateManager
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,11 @@ class WishlistOpsWebServer:
             self.config = load_config(config_path)
         except FileNotFoundError:
             self.config = None
-            logger.info("No config found, will create new")
+            logger.info("No config found, will create new via setup wizard")
+        except ConfigurationError as e:
+            # Allow server to start even if secrets/env vars missing so user can supply them
+            logger.warning(f"Configuration incomplete: {e}. Launching setup wizard.")
+            self.config = None
     
     def _setup_routes(self):
         """Setup all web routes."""

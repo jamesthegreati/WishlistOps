@@ -1,12 +1,66 @@
-# AI SaaS Opportunities Documentation
+# 🎮 WishlistOps
 
-This repository contains comprehensive strategic analysis and business planning documents for AI-powered SaaS opportunities in the creator economy, with a primary focus on the indie game development vertical.
+**Automated Steam Marketing for Indie Game Developers**
 
-## 🎯 Quick Start
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-**New here?** Start with [00_EXECUTIVE_SUMMARY.md](00_EXECUTIVE_SUMMARY.md) - it's your navigation hub that guides you through all documents based on your role (entrepreneur, developer, investor, or product manager).
+Transform your Git commits into Steam announcements automatically. Save 4+ hours per week on marketing and focus on building your game.
 
-**Building this?** Jump straight to [05_WishlistOps_Revised_Architecture.md](05_WishlistOps_Revised_Architecture.md) ⭐ - the production-ready implementation guide.
+---
+
+## ✨ Features
+
+- 🤖 **AI-Powered Announcements** - Google Gemini writes Steam announcements from your commits
+- 🎨 **Smart Banner Generation** - Auto-crop screenshots + logo overlay for Steam's format
+- ✅ **Human Approval** - Review in Discord before posting (no surprises!)
+- 📊 **Beautiful Dashboard** - Local web UI for setup, monitoring, and multi-project management
+- 🔒 **100% Private** - Runs locally, your data never touches our servers
+- 💰 **$0 Infrastructure** - Free GitHub Actions + free Google AI tier
+
+---
+
+## 🚀 Quick Start (2 Minutes)
+
+### Installation
+
+```bash
+pip install wishlistops
+```
+
+### Setup
+
+```bash
+wishlistops setup
+```
+
+This launches a beautiful web dashboard at `http://127.0.0.1:8080` that guides you through:
+1. **GitHub** - Connect your game repository
+2. **Discord** - Set up approval notifications
+3. **Google AI** - Free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+4. **Projects** - Select which games to monitor
+
+### Use It
+
+```bash
+# Make commits as usual
+git commit -m "feat: added boss fight in Fire Temple"
+
+# Tag a release
+git tag v1.2.0
+git push origin v1.2.0
+
+# Check Discord - your announcement is ready for approval!
+# React with ✅ to post to Steam
+```
+
+---
+
+## 📚 Full Documentation
+
+- **[Launch Guide](LAUNCH_GUIDE.md)** - Complete guide to shipping to PyPI
+- **[Strategic Docs](docs/)** - Business planning and architecture
+- **[Built-in Docs](http://127.0.0.1:8080/docs)** - Access after running `wishlistops setup`
 
 ---
 

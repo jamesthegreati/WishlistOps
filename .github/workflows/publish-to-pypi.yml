@@ -48,10 +48,6 @@ jobs:
     - build
     runs-on: ubuntu-latest
     
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/wishlistops
-    
     permissions:
       id-token: write
     
@@ -73,10 +69,6 @@ jobs:
     needs:
     - build
     runs-on: ubuntu-latest
-    
-    environment:
-      name: pypi
-      url: https://pypi.org/p/wishlistops
     
     permissions:
       id-token: write

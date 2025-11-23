@@ -419,21 +419,9 @@ Personality: {self.config.voice.personality}
             )
             
         except Exception as e:
-            if not screenshot_attr:
-                continue
-            path = Path(str(screenshot_attr))
-            if path.exists():
-                try:
-                    return path.read_bytes()
-                except OSError as exc:
-                    logger.warning("Failed to read screenshot", extra={"path": str(path), "error": str(exc)})
-        fallback = self._find_recent_screenshot()
-        if fallback:
-            try:
-                return fallback.read_bytes()
-            except OSError as exc:
-                logger.warning("Failed to read fallback screenshot", extra={"path": str(fallback), "error": str(exc)})
-        return None
+            logger.error(f"Regeneration failed: {e}", exc_info=True)
+            # Return original draft if regeneration fails
+            return draft
 
     def _find_recent_screenshot(self) -> Optional[Path]:
         search_dirs = [
