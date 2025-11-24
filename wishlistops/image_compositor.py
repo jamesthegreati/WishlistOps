@@ -11,6 +11,8 @@ import logging
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Tuple
+import tempfile
+import os
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageChops
 from PIL.Image import Resampling
@@ -176,14 +178,119 @@ class ImageCompositor:
     
     def _ai_upscale(self, image: Image.Image, target_size: Tuple[int, int]) -> Optional[Image.Image]:
         """
-        AI-powered upscaling using advanced interpolation and sharpening.
+        AI-powered upscaling using Real-ESRGAN (state-of-the-art super-resolution).
+        Falls back to enhanced OpenCV methods if Real-ESRGAN unavailable.
         
         Args:
             image: Input image to upscale
             target_size: Target dimensions
             
         Returns:
-            Upscaled image with enhanced quality
+            Upscaled image with maximum quality
+        """
+        # Try Real-ESRGAN first (best quality)
+        result = self._realesrgan_upscale(image, target_size)
+        if result is not None:
+            return result
+        
+        # Fallback to enhanced OpenCV (good quality)
+        return self._opencv_enhanced_upscale(image, target_size)
+    
+    def _realesrgan_upscale(self, image: Image.Image, target_size: Tuple[int, int]) -> Optional[Image.Image]:
+        """
+        Use Real-ESRGAN for photo-realistic super-resolution.
+        This is the industry-standard method for high-quality upscaling.
+        """
+        try:
+            from realesrgan import RealESRGANer
+            from basicsr.archs.rrdbnet_arch import RRDBNet
+            import torch
+            import cv2
+            import numpy as np
+            
+            # Calculate scale needed
+            scale_x = target_size[0] / image.width
+            scale_y = target_size[1] / image.height
+            scale = max(scale_x, scale_y)
+            
+            # Choose appropriate model based on scale
+            if scale <= 2:
+                model_name = 'RealESRGAN_x2plus'
+                model_scale = 2
+            elif scale <= 4:
+                model_name = 'RealESRGAN_x4plus'
+                model_scale = 4
+            else:
+                # For very large scales, upscale in stages
+                model_name = 'RealESRGAN_x4plus'
+                model_scale = 4
+            
+            # Initialize model
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=model_scale)
+            
+            # Determine device
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            
+            # Create upsampler
+            upsampler = RealESRGANer(
+                scale=model_scale,
+                model_path=f'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/{model_name}.pth',
+                model=model,
+                tile=400,  # Tile size for memory efficiency
+                tile_pad=10,
+                pre_pad=0,
+                half=True if device.type == 'cuda' else False,
+                device=device
+            )
+            
+            # Convert PIL to cv2 format
+            img_array = np.array(image)
+            if len(img_array.shape) == 2:
+                img_cv = cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
+                is_gray = True
+            elif img_array.shape[2] == 4:  # RGBA
+                alpha = img_array[:, :, 3]
+                img_cv = cv2.cvtColor(img_array[:, :, :3], cv2.COLOR_RGB2BGR)
+                is_alpha = True
+            else:  # RGB
+                img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                is_alpha = False
+                is_gray = False
+            
+            # Upscale with Real-ESRGAN
+            output, _ = upsampler.enhance(img_cv, outscale=scale)
+            
+            # Resize to exact target if needed
+            if (output.shape[1], output.shape[0]) != target_size:
+                output = cv2.resize(output, target_size, interpolation=cv2.INTER_LANCZOS4)
+            
+            logger.info(f"✨ Real-ESRGAN upscaling: {image.width}x{image.height} → {target_size[0]}x{target_size[1]} ({scale:.1f}x)")
+            
+            # Convert back to PIL
+            output_rgb = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
+            
+            if 'is_alpha' in locals() and is_alpha:
+                # Resize and merge alpha
+                alpha_resized = cv2.resize(alpha, target_size, interpolation=cv2.INTER_LANCZOS4)
+                output_rgba = np.dstack((output_rgb, alpha_resized))
+                return Image.fromarray(output_rgba, 'RGBA')
+            elif 'is_gray' in locals() and is_gray:
+                gray = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
+                return Image.fromarray(gray, 'L')
+            else:
+                return Image.fromarray(output_rgb, 'RGB')
+        
+        except ImportError:
+            logger.debug("Real-ESRGAN not available, falling back to OpenCV")
+            return None
+        except Exception as e:
+            logger.warning(f"Real-ESRGAN failed ({e}), falling back to OpenCV")
+            return None
+    
+    def _opencv_enhanced_upscale(self, image: Image.Image, target_size: Tuple[int, int]) -> Optional[Image.Image]:
+        """
+        Enhanced OpenCV upscaling with multiple quality improvements.
+        Used as fallback when Real-ESRGAN is not available.
         """
         try:
             import cv2
@@ -195,7 +302,6 @@ class ImageCompositor:
                 img_cv = img_array
                 alpha = None
             elif img_array.shape[2] == 4:  # RGBA
-                # Separate alpha channel
                 alpha = img_array[:, :, 3]
                 img_cv = cv2.cvtColor(img_array[:, :, :3], cv2.COLOR_RGB2BGR)
             else:  # RGB
@@ -206,7 +312,6 @@ class ImageCompositor:
             result = cv2.resize(img_cv, target_size, interpolation=cv2.INTER_LANCZOS4)
             
             # Apply unsharp mask for better clarity
-            # This enhances edges without excessive noise
             gaussian = cv2.GaussianBlur(result, (0, 0), 2.0)
             result = cv2.addWeighted(result, 1.5, gaussian, -0.5, 0)
             
@@ -221,15 +326,12 @@ class ImageCompositor:
             result = cv2.merge([l, a, b])
             result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
             
-            logger.info(f"Enhanced upscaling: LANCZOS4 + unsharp mask + bilateral filter")
+            logger.info(f"Enhanced OpenCV upscaling: LANCZOS4 + unsharp mask + bilateral filter")
             
             # Convert back to PIL
             if alpha is not None:
-                # Resize alpha channel
                 alpha_resized = cv2.resize(alpha, target_size, interpolation=cv2.INTER_LANCZOS4)
-                # Convert BGR to RGB
                 result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
-                # Merge with alpha
                 result_rgba = np.dstack((result_rgb, alpha_resized))
                 return Image.fromarray(result_rgba, 'RGBA')
             else:
@@ -237,10 +339,10 @@ class ImageCompositor:
                 return Image.fromarray(result_rgb, 'RGB')
                 
         except ImportError:
-            logger.debug("OpenCV not available for AI upscaling")
+            logger.debug("OpenCV not available for enhanced upscaling")
             return None
         except Exception as e:
-            logger.warning(f"AI upscaling error: {e}")
+            logger.warning(f"Enhanced upscaling error: {e}")
             return None
 
     def _smart_crop(self, image: Image.Image, target_width: int, target_height: int) -> Image.Image:
