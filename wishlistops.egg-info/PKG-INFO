@@ -59,6 +59,10 @@ Requires-Dist: isort>=5.12.0; extra == "dev"
 Requires-Dist: flake8>=6.1.0; extra == "dev"
 Provides-Extra: web
 Requires-Dist: aiohttp-cors>=0.7.0; extra == "web"
+Provides-Extra: cli
+Requires-Dist: questionary>=2.0.0; extra == "cli"
+Requires-Dist: rich>=13.0.0; extra == "cli"
+Requires-Dist: click>=8.1.0; extra == "cli"
 Dynamic: author
 Dynamic: requires-python
 

@@ -65,6 +65,7 @@ tests/test_state_manager.py
 wishlistops/__init__.py
 wishlistops/__main__.py
 wishlistops/ai_client.py
+wishlistops/cli.py
 wishlistops/config.json
 wishlistops/config_manager.py
 wishlistops/content_filter.py
@@ -99,3 +100,5 @@ wishlistops/../dashboard/guides/discord.md
 wishlistops/../dashboard/guides/github.md
 wishlistops/../dashboard/guides/google_ai.md
 wishlistops/../dashboard/guides/steam.md
+wishlistops/../dashboard/images/discord-webhook.svg
+wishlistops/../dashboard/images/google-ai-key.svg

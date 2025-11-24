@@ -28,7 +28,8 @@ except ImportError:
 from .config_manager import load_config, save_config, ConfigurationError
 from .git_parser import GitParser
 from .ai_client import AIClient
-from .models import AnnouncementRequest
+from .models import AnnouncementDraft, Commit
+from datetime import datetime
 
 console = Console()
 
@@ -175,17 +176,36 @@ class WishlistOpsCLI:
             task = progress.add_task("🤖 AI is writing your announcement...", total=None)
             
             # Create AI client
-            ai_client = AIClient(self.config.google_ai_key)
+            ai_client = AIClient(self.config.google_ai_key, self.config.ai)
             
-            # Create request
-            request = AnnouncementRequest(
-                commits=selected_commits,
-                game_name=self.config.steam.app_name,
-                steam_app_id=self.config.steam.app_id
+            # Build simple context prompt
+            commit_summary = "\n".join([
+                f"- {c.message} (by {c.author})"
+                for c in selected_commits
+            ])
+            
+            prompt = f"""Generate a Discord announcement for {self.config.steam.app_name}.
+
+Recent changes:
+{commit_summary}
+
+Tone: {self.config.voice.tone}
+Style: {self.config.voice.personality}
+
+Generate a JSON response with 'title' and 'body' fields."""
+            
+            # Generate text
+            result = await ai_client.generate_text(
+                prompt=prompt,
+                temperature=self.config.ai.temperature
             )
             
-            # Generate
-            announcement = await ai_client.generate_announcement(request)
+            # Create announcement draft
+            announcement = AnnouncementDraft(
+                title=result.get('title', 'Update Announcement'),
+                body=result.get('body', commit_summary),
+                created_at=datetime.now().isoformat()
+            )
         
         # Display result
         panel = Panel(

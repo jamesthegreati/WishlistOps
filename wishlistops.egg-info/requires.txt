@@ -23,6 +23,11 @@ cryptography>=41.0.0
 [:python_version < "3.11"]
 tomli>=2.0.1
 
+[cli]
+questionary>=2.0.0
+rich>=13.0.0
+click>=8.1.0
+
 [dev]
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

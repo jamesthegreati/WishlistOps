@@ -8,117 +8,173 @@
 
 Transform your Git commits into Steam announcements automatically. Save 4+ hours per week on marketing and focus on building your game.
 
-**🎉 NEW**: Download announcements directly from Discord or the web dashboard for easy Steam upload!
-
----
-
-## 📖 Quick Links
-
-| Resource | Description |
-|----------|-------------|
-| **[User Guide](USER_GUIDE.md)** | Complete usage guide with examples and troubleshooting |
-| **[Production Deployment](PRODUCTION_DEPLOYMENT.md)** | Deploy to GitHub Actions, Docker, or cloud platforms |
-| **[Steam Integration](STEAM_GAME_CONTEXT_INTEGRATION.md)** | How game context improves AI announcements |
-| **[API Documentation](docs/)** | Technical architecture and build plans |
-
 ---
 
 ## ✨ Features
 
-- 🤖 **AI-Powered Announcements** - Google Gemini writes Steam announcements from your commits
-- 🎨 **Smart Banner Generation** - Auto-crop screenshots + logo overlay for Steam's format
-- 💾 **Easy Downloads** - Get announcements as .txt files for copy/paste to Steam
-- ✅ **Discord Integration** - Announcements sent with downloadable files attached
-- 📊 **Beautiful Dashboard** - Local web UI for setup, monitoring, and testing
-- 🎮 **Steam Game Context** - AI knows your game's genre, style, and previous announcements
-- 🔒 **100% Private** - Runs locally, your data never touches our servers
-- 💰 **$0 Infrastructure** - Free GitHub Actions + free Google AI tier
+### 🎮 Web Dashboard & CLI
+- **Web Interface** - Beautiful dashboard at `http://localhost:8080` for configuration and monitoring
+- **Interactive CLI** - Full-featured terminal UI with `wishlistops-cli` (optional)
+- **Multi-commit Selection** - Select and batch process multiple commits at once
+- **Image Upload** - Upload logo and banner images directly from the dashboard
+
+### 🤖 AI-Powered Automation
+- **Smart Generation** - Google Gemini writes Steam-ready announcements from your commits
+- **Game Context** - AI understands your game's genre, style, and previous announcements
+- **Banner Creation** - Auto-crop screenshots + logo overlay for Steam's 1920x1080 format
+- **Quality Filtering** - Removes generic AI language and keeps your authentic voice
+
+### 🔒 Safe & Private
+- **Discord Approval** - Human-in-the-loop workflow with download links
+- **100% Local** - Runs on your machine, your data never touches our servers
+- **Rate Limiting** - Prevents spam and accidental over-posting
+- **Configurable Voice** - Set tone, personality, and words to avoid
 
 ---
 
-## 🚀 Quick Start (2 Minutes)
+## 🚀 Installation
 
-### Installation
+### Option 1: Web Dashboard (Recommended)
 
 ```bash
+# Install package
 pip install wishlistops
+
+# Launch web interface
+wishlistops setup
 ```
 
-### Launch Web Dashboard
+Visit `http://localhost:8080/setup` and follow the 4-step wizard:
+1. **GitHub** - Connect your game repository  
+2. **Discord** - Set up approval webhook  
+3. **Google AI** - Get free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)  
+4. **Images** - Upload your game logo and banner
+
+### Option 2: Interactive CLI
 
 ```bash
-wishlistops-web
+# Install with CLI dependencies
+pip install wishlistops[cli]
+
+# Launch terminal UI
+wishlistops-cli
 ```
 
-This launches a beautiful web dashboard at `http://localhost:8080` that guides you through:
-1. **GitHub** - Connect your game repository
-2. **Discord** - Set up approval notifications
-3. **Google AI** - Free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
-4. **Projects** - Select which games to monitor
+The CLI provides a rich terminal interface with:
+- 🎯 Interactive commit selection
+- ⚙️ Configuration wizard
+- 📤 Image upload from terminal
+- 📊 Formatted commit history
+- 🎨 Beautiful tables and progress bars
 
-### Use It
+---
+
+## 🎯 Usage
+
+### Web Dashboard
+
+```bash
+# Start the dashboard
+wishlistops setup
+
+# Navigate to:
+# - Setup: http://localhost:8080/setup
+# - Commits: http://localhost:8080/commits  
+# - Monitor: http://localhost:8080/monitor
+# - Test: http://localhost:8080/test
+```
+
+### Interactive CLI
+
+```bash
+# Launch CLI menu
+wishlistops-cli
+
+# Choose from:
+# 1. Generate announcement (multi-select commits)
+# 2. Configure settings
+# 3. Upload images  
+# 4. View commit history
+# 5. Test configuration
+# 6. View logs
+# 7. Exit
+```
+
+### Automated Workflow
 
 ```bash
 # Make commits as usual
 git commit -m "feat: added boss fight in Fire Temple"
 
 # Tag a release
-git tag v1.2.0
+git tag v1.2.0  
 git push origin v1.2.0
 
-# Check Discord - your announcement is ready for approval!
-# React with ✅ to post to Steam
+# Check Discord - your announcement is ready!
+# Download the .txt file and banner
+# Upload to Steam Community Hub
 ```
-
----
-
-## 🛠️ Technology Stack
-
-- **Python 3.11+** - Core application
-- **Google Gemini AI** - Announcement generation and image processing
-- **aiohttp** - Async web server
-- **GitPython** - Git repository analysis
-- **Pillow** - Image composition
-- **Discord Webhooks** - Approval notifications
 
 ---
 
 ## 💡 How It Works
 
 1. **Monitor** - Watches your Git repository for commits and tags
-2. **Analyze** - Extracts meaningful updates using Git history
-3. **Generate** - AI creates Steam-ready announcements from your commits
-4. **Review** - Sends to Discord for your approval
-5. **Download** - Get text + banner files to upload to Steam
+2. **Analyze** - Extracts meaningful updates using Git history and Steam context
+3. **Generate** - AI creates Steam-ready announcements with proper formatting
+4. **Review** - Sends to Discord for approval with download links
+5. **Upload** - Download .txt and banner files, upload to Steam Community Hub
 
 ---
 
-## 🎯 Features
+## 📋 Requirements
 
-### Core Features
-- ✅ AI-powered announcement generation from Git commits
-- ✅ Steam game context integration for better quality
-- ✅ Smart banner generation with logo overlays
-- ✅ Discord approval workflow with downloadable files
-- ✅ Web dashboard for configuration and monitoring
-- ✅ Multi-commit batch processing
-- ✅ Interactive CLI for terminal users
-
-### Quality & Safety
-- ✅ Content filtering (no generic AI language)
-- ✅ Human-in-the-loop approval required
-- ✅ Rate limiting (prevent spam)
-- ✅ Configurable voice and tone
+- **Python 3.11+**
+- **Git repository** for your game
+- **Free API Keys**:
+  - [Google AI Studio](https://aistudio.google.com/app/apikey) - For AI generation
+  - Discord Webhook URL - For approval notifications
+  - (Optional) Steam API Key - For enhanced game context
 
 ---
 
 ## 📚 Documentation
 
-For detailed guides and documentation, visit:
-- **[User Guide](USER_GUIDE.md)** - Complete usage instructions
-- **[Production Deployment](PRODUCTION_DEPLOYMENT.md)** - Deploy to cloud platforms
-- **[Steam Integration](STEAM_GAME_CONTEXT_INTEGRATION.md)** - Game context features
-- **[Technical Docs](docs/)** - Architecture and build plans
+- **[User Guide](USER_GUIDE.md)** - Complete walkthrough with examples
+- **[Quick Start](docs/QUICK_START.md)** - Get started in 5 minutes
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Deploy to GitHub Actions, Docker, or cloud
+- **[Technical Architecture](docs/architecture/)** - System design and diagrams
+
+---
+
+## 🔧 Configuration
+
+WishlistOps stores configuration in `wishlistops/config.json`:
+
+```json
+{
+  "version": "1.0",
+  "steam": {
+    "app_id": "480",
+    "app_name": "Spacewar"
+  },
+  "branding": {
+    "art_style": "retro arcade space shooter",
+    "color_palette": ["#000000", "#FFFFFF"],
+    "logo_position": "top-right"
+  },
+  "voice": {
+    "tone": "casual and excited",
+    "personality": "friendly indie developer",
+    "avoid_phrases": ["monetization", "grind"]
+  }
+}
+```
+
+Secrets (API keys) are stored in environment variables:
+- `GOOGLE_AI_KEY`
+- `DISCORD_WEBHOOK_URL`  
+- `STEAM_API_KEY` (optional)
 
 ---
 
