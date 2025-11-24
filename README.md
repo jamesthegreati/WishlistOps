@@ -4,8 +4,22 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Production Ready](https://img.shields.io/badge/status-production--ready-brightgreen.svg)](https://github.com/jamesthegreati/WishlistOps)
 
 Transform your Git commits into Steam announcements automatically. Save 4+ hours per week on marketing and focus on building your game.
+
+**🎉 NEW**: Download announcements directly from Discord or the web dashboard for easy Steam upload!
+
+---
+
+## 📖 Documentation
+
+| Guide | Description |
+|-------|-------------|
+| **[User Guide](USER_GUIDE.md)** | Complete usage guide with examples and troubleshooting |
+| **[Production Deployment](PRODUCTION_DEPLOYMENT.md)** | Deploy to GitHub Actions, Docker, or cloud platforms |
+| **[Steam Integration](STEAM_GAME_CONTEXT_INTEGRATION.md)** | How game context improves AI announcements |
+| **[Launch Guide](LAUNCH_GUIDE.md)** | Publishing to PyPI and distribution |
 
 ---
 
@@ -13,8 +27,10 @@ Transform your Git commits into Steam announcements automatically. Save 4+ hours
 
 - 🤖 **AI-Powered Announcements** - Google Gemini writes Steam announcements from your commits
 - 🎨 **Smart Banner Generation** - Auto-crop screenshots + logo overlay for Steam's format
-- ✅ **Human Approval** - Review in Discord before posting (no surprises!)
-- 📊 **Beautiful Dashboard** - Local web UI for setup, monitoring, and multi-project management
+- 💾 **Easy Downloads** - Get announcements as .txt files for copy/paste to Steam
+- ✅ **Discord Integration** - Announcements sent with downloadable files attached
+- 📊 **Beautiful Dashboard** - Local web UI for setup, monitoring, and testing
+- 🎮 **Steam Game Context** - AI knows your game's genre, style, and previous announcements
 - 🔒 **100% Private** - Runs locally, your data never touches our servers
 - 💰 **$0 Infrastructure** - Free GitHub Actions + free Google AI tier
 
@@ -28,13 +44,13 @@ Transform your Git commits into Steam announcements automatically. Save 4+ hours
 pip install wishlistops
 ```
 
-### Setup
+### Launch Web Dashboard
 
 ```bash
-wishlistops setup
+wishlistops-web
 ```
 
-This launches a beautiful web dashboard at `http://127.0.0.1:8080` that guides you through:
+This launches a beautiful web dashboard at `http://localhost:8080` that guides you through:
 1. **GitHub** - Connect your game repository
 2. **Discord** - Set up approval notifications
 3. **Google AI** - Free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)

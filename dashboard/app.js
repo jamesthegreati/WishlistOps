@@ -541,8 +541,11 @@ class UIManager {
 // Application Initialization
 // ========================================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const ui = new UIManager();
+    
+    // Load saved configuration first
+    await loadSavedConfiguration();
     
     // Check if already authenticated
     if (state.isAuthenticated()) {
@@ -558,3 +561,78 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.showScreen('welcome');
     }
 });
+
+/**
+ * Load and populate saved configuration from server
+ */
+async function loadSavedConfiguration() {
+    try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        
+        if (data.config) {
+            const config = data.config;
+            
+            // Populate Steam fields
+            if (config.steam) {
+                const steamAppId = document.getElementById('steam-app-id');
+                const steamAppName = document.getElementById('steam-app-name');
+                if (steamAppId && config.steam.app_id) steamAppId.value = config.steam.app_id;
+                if (steamAppName && config.steam.app_name) steamAppName.value = config.steam.app_name;
+            }
+            
+            // Populate Branding fields
+            if (config.branding) {
+                const artStyle = document.getElementById('art-style');
+                const colorPalette = document.getElementById('color-palette');
+                const logoPosition = document.getElementById('logo-position');
+                const logoSize = document.getElementById('logo-size');
+                const logoSizeValue = document.getElementById('logo-size-value');
+                
+                if (artStyle && config.branding.art_style) artStyle.value = config.branding.art_style;
+                if (colorPalette && config.branding.color_palette) {
+                    colorPalette.value = Array.isArray(config.branding.color_palette)
+                        ? config.branding.color_palette.join(', ')
+                        : config.branding.color_palette;
+                }
+                if (logoPosition && config.branding.logo_position) logoPosition.value = config.branding.logo_position;
+                if (logoSize && config.branding.logo_size_percent) {
+                    logoSize.value = config.branding.logo_size_percent;
+                    if (logoSizeValue) logoSizeValue.textContent = config.branding.logo_size_percent + '%';
+                }
+            }
+            
+            // Populate Voice fields
+            if (config.voice) {
+                const tone = document.getElementById('tone');
+                const personality = document.getElementById('personality');
+                const avoidPhrases = document.getElementById('avoid-phrases');
+                
+                if (tone && config.voice.tone) tone.value = config.voice.tone;
+                if (personality && config.voice.personality) personality.value = config.voice.personality;
+                if (avoidPhrases && config.voice.avoid_phrases) {
+                    avoidPhrases.value = Array.isArray(config.voice.avoid_phrases)
+                        ? config.voice.avoid_phrases.join(', ')
+                        : config.voice.avoid_phrases;
+                }
+            }
+            
+            // Populate Automation fields
+            if (config.automation) {
+                const enabled = document.getElementById('automation-enabled');
+                const triggerOnTags = document.getElementById('trigger-on-tags');
+                const minDays = document.getElementById('min-days');
+                const requireApproval = document.getElementById('require-approval');
+                
+                if (enabled) enabled.checked = config.automation.enabled !== false;
+                if (triggerOnTags) triggerOnTags.checked = config.automation.trigger_on_tags !== false;
+                if (minDays && config.automation.min_days_between_posts) minDays.value = config.automation.min_days_between_posts;
+                if (requireApproval) requireApproval.checked = config.automation.require_manual_approval !== false;
+            }
+            
+            console.log('✅ Configuration loaded successfully');
+        }
+    } catch (error) {
+        console.log('No saved configuration found or error loading:', error);
+    }
+}

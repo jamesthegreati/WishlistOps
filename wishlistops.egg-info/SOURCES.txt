@@ -7,11 +7,13 @@ requirements.txt
 setup.py
 dashboard/README.md
 dashboard/app.js
+dashboard/commits.html
 dashboard/docs.html
 dashboard/index.html
 dashboard/monitor.html
 dashboard/setup.html
 dashboard/styles.css
+dashboard/test.html
 dashboard/welcome.html
 dashboard/guides/commit_best_practices.md
 dashboard/guides/discord.md
@@ -21,6 +23,7 @@ dashboard/guides/steam.md
 docs/AI_AGENT_QUICK_REFERENCE.md
 docs/DEPLOYMENT_GUIDE.md
 docs/QUICK_START.md
+docs/STEAM_API_NOTES.md
 docs/architecture/03_WishlistOps_Technical_Architecture.md
 docs/architecture/04_WishlistOps_System_Architecture_Diagrams.md
 docs/architecture/05_WishlistOps_Revised_Architecture.md
@@ -83,11 +86,13 @@ wishlistops.egg-info/requires.txt
 wishlistops.egg-info/top_level.txt
 wishlistops/../dashboard/README.md
 wishlistops/../dashboard/app.js
+wishlistops/../dashboard/commits.html
 wishlistops/../dashboard/docs.html
 wishlistops/../dashboard/index.html
 wishlistops/../dashboard/monitor.html
 wishlistops/../dashboard/setup.html
 wishlistops/../dashboard/styles.css
+wishlistops/../dashboard/test.html
 wishlistops/../dashboard/welcome.html
 wishlistops/../dashboard/guides/commit_best_practices.md
 wishlistops/../dashboard/guides/discord.md

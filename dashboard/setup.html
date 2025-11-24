@@ -275,6 +275,106 @@
         let completedSteps = 0;
         let selectedProjects = new Set();
 
+        // Load saved configuration on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadSavedConfig();
+            checkCompletedSteps();
+        });
+
+        async function loadSavedConfig() {
+            try {
+                // Load from server
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                if (data.config) {
+                    const config = data.config;
+                    
+                    // Restore Steam settings
+                    if (config.steam) {
+                        const steamAppId = document.querySelector('input[placeholder*="Steam App ID"]');
+                        const steamAppName = document.querySelector('input[placeholder*="Game Name"]');
+                        if (steamAppId && config.steam.app_id) steamAppId.value = config.steam.app_id;
+                        if (steamAppName && config.steam.app_name) steamAppName.value = config.steam.app_name;
+                    }
+                    
+                    // Restore Branding settings
+                    if (config.branding) {
+                        const artStyle = document.querySelector('input[placeholder*="art style"]');
+                        const colorPalette = document.querySelector('input[placeholder*="color palette"]');
+                        const logoPosition = document.querySelector('select[name="logo_position"]');
+                        const logoSize = document.querySelector('input[type="range"]');
+                        
+                        if (artStyle && config.branding.art_style) artStyle.value = config.branding.art_style;
+                        if (colorPalette && config.branding.color_palette) {
+                            colorPalette.value = Array.isArray(config.branding.color_palette) 
+                                ? config.branding.color_palette.join(', ') 
+                                : config.branding.color_palette;
+                        }
+                        if (logoPosition && config.branding.logo_position) logoPosition.value = config.branding.logo_position;
+                        if (logoSize && config.branding.logo_size_percent) {
+                            logoSize.value = config.branding.logo_size_percent;
+                            const sizeDisplay = document.querySelector('.size-display');
+                            if (sizeDisplay) sizeDisplay.textContent = config.branding.logo_size_percent + '%';
+                        }
+                    }
+                    
+                    // Restore Voice settings
+                    if (config.voice) {
+                        const tone = document.querySelector('input[placeholder*="tone"]');
+                        const personality = document.querySelector('input[placeholder*="personality"]');
+                        const avoidPhrases = document.querySelector('input[placeholder*="avoid phrases"]');
+                        
+                        if (tone && config.voice.tone) tone.value = config.voice.tone;
+                        if (personality && config.voice.personality) personality.value = config.voice.personality;
+                        if (avoidPhrases && config.voice.avoid_phrases) {
+                            avoidPhrases.value = Array.isArray(config.voice.avoid_phrases)
+                                ? config.voice.avoid_phrases.join(', ')
+                                : config.voice.avoid_phrases;
+                        }
+                    }
+                    
+                    // Restore Automation settings
+                    if (config.automation) {
+                        const enabled = document.querySelector('input[name="automation_enabled"]');
+                        const triggerOnTags = document.querySelector('input[name="trigger_on_tags"]');
+                        const minDays = document.querySelector('input[name="min_days"]');
+                        const requireApproval = document.querySelector('input[name="require_approval"]');
+                        
+                        if (enabled) enabled.checked = config.automation.enabled !== false;
+                        if (triggerOnTags) triggerOnTags.checked = config.automation.trigger_on_tags !== false;
+                        if (minDays && config.automation.min_days_between_posts) minDays.value = config.automation.min_days_between_posts;
+                        if (requireApproval) requireApproval.checked = config.automation.require_manual_approval !== false;
+                    }
+                }
+            } catch (error) {
+                console.log('No saved config found or error loading:', error);
+            }
+        }
+
+        function checkCompletedSteps() {
+            // Check which steps are already completed
+            if (localStorage.getItem('github_token')) {
+                document.getElementById('step-github').classList.add('completed');
+                document.getElementById('github-success').classList.add('show');
+                completedSteps++;
+            }
+            
+            if (localStorage.getItem('discord_webhook')) {
+                document.getElementById('step-discord').classList.add('completed');
+                document.getElementById('discord-success').classList.add('show');
+                completedSteps++;
+            }
+            
+            if (localStorage.getItem('google_ai_key')) {
+                document.getElementById('step-google').classList.add('completed');
+                document.getElementById('google-success').classList.add('show');
+                completedSteps++;
+            }
+            
+            updateProgress();
+        }
+
         function updateProgress() {
             const progress = (completedSteps / 4) * 100;
             document.getElementById('progress').style.width = progress + '%';
@@ -416,14 +516,45 @@
 
         async function saveConfiguration() {
             const config = {
-                github_token: localStorage.getItem('github_token'),
-                discord_webhook: localStorage.getItem('discord_webhook'),
-                google_ai_key: localStorage.getItem('google_ai_key'),
+                steam: {
+                    app_id: document.querySelector('input[placeholder*="Steam App ID"]')?.value || '',
+                    app_name: document.querySelector('input[placeholder*="Game Name"]')?.value || ''
+                },
+                branding: {
+                    art_style: document.querySelector('input[placeholder*="art style"]')?.value || '',
+                    color_palette: document.querySelector('input[placeholder*="color palette"]')?.value.split(',').map(c => c.trim()) || [],
+                    logo_position: document.querySelector('select[name="logo_position"]')?.value || 'center',
+                    logo_size_percent: parseInt(document.querySelector('input[type="range"]')?.value || '30')
+                },
+                voice: {
+                    tone: document.querySelector('input[placeholder*="tone"]')?.value || '',
+                    personality: document.querySelector('input[placeholder*="personality"]')?.value || '',
+                    avoid_phrases: document.querySelector('input[placeholder*="avoid phrases"]')?.value.split(',').map(p => p.trim()) || []
+                },
+                automation: {
+                    enabled: document.querySelector('input[name="automation_enabled"]')?.checked ?? true,
+                    trigger_on_tags: document.querySelector('input[name="trigger_on_tags"]')?.checked ?? true,
+                    min_days_between_posts: parseInt(document.querySelector('input[name="min_days"]')?.value || '7'),
+                    require_manual_approval: document.querySelector('input[name="require_approval"]')?.checked ?? true
+                },
                 projects: Array.from(selectedProjects)
             };
 
             try {
-                // In a real implementation, this would save to the server
+                // Save to server
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save configuration');
+                }
+
+                // Also save to localStorage as backup
                 localStorage.setItem('wishlistops_config', JSON.stringify(config));
                 
                 // Mark final step as completed
@@ -431,6 +562,9 @@
                 document.getElementById('projects-success').classList.add('show');
                 completedSteps++;
                 updateProgress();
+
+                // Show success message
+                alert('✅ Configuration saved successfully!');
 
                 // Redirect to dashboard
                 setTimeout(() => {

@@ -61,6 +61,11 @@ class SteamConfig(BaseModel):
         min_length=1,
         max_length=255
     )
+    steam_id: Optional[str] = Field(
+        default=None,
+        description="Steam User ID (17-digit SteamID64) for fetching owned games",
+        pattern=r"^\d{17}$"
+    )
     
     @field_validator('app_id')
     @classmethod

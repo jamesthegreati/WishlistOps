@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commit History - WishlistOps</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .commits-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .filters {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .filter-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .filter-btn:hover {
+            border-color: #007bff;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .commit-timeline {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .commit-item {
+            border-left: 3px solid #ddd;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .commit-item:hover {
+            background: #f8f9fa;
+            border-left-color: #007bff;
+        }
+
+        .commit-item.player-facing {
+            border-left-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .commit-item.has-announcement {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+
+        .commit-item::before {
+            content: '';
+            position: absolute;
+            left: -7px;
+            top: 20px;
+            width: 11px;
+            height: 11px;
+            background: white;
+            border: 3px solid #ddd;
+            border-radius: 50%;
+        }
+
+        .commit-item.player-facing::before {
+            border-color: #28a745;
+        }
+
+        .commit-item.has-announcement::before {
+            border-color: #ffc107;
+            background: #ffc107;
+        }
+
+        .commit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .commit-sha {
+            font-family: 'Courier New', monospace;
+            background: #f1f3f5;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #495057;
+        }
+
+        .commit-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+
+        .commit-type.feat { background: #d4edda; color: #155724; }
+        .commit-type.fix { background: #fff3cd; color: #856404; }
+        .commit-type.internal { background: #e2e3e5; color: #383d41; }
+        .commit-type.unknown { background: #f8d7da; color: #721c24; }
+
+        .commit-message {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #212529;
+        }
+
+        .commit-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: #6c757d;
+        }
+
+        .commit-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .commit-files {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e9ecef;
+            font-size: 12px;
+        }
+
+        .file-tag {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 5px;
+            margin-bottom: 3px;
+        }
+
+        .announcement-badge {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .announcement-badge strong {
+            color: #856404;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <nav class="main-nav">
+        <div class="nav-brand">🎮 WishlistOps</div>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/setup">Setup</a>
+            <a href="/monitor">Monitor</a>
+            <a href="/commits" class="active">Commits</a>
+            <a href="/test">Test</a>
+            <a href="/docs">Docs</a>
+        </div>
+    </nav>
+
+    <div class="commits-container">
+        <h1>📝 Commit History</h1>
+        <p>View all commits and see which ones triggered announcements</p>
+
+        <!-- Statistics -->
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="total-commits">-</div>
+                <div class="stat-label">Total Commits</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="player-facing">-</div>
+                <div class="stat-label">Player-Facing</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="announcements">-</div>
+                <div class="stat-label">Announcements Created</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <div class="filter-group">
+                <label><strong>Filter:</strong></label>
+                <button class="filter-btn active" data-filter="all">All Commits</button>
+                <button class="filter-btn" data-filter="player-facing">Player-Facing Only</button>
+                <button class="filter-btn" data-filter="announcements">With Announcements</button>
+                <button class="filter-btn" data-filter="internal">Internal Only</button>
+            </div>
+        </div>
+
+        <!-- Commit Timeline -->
+        <div class="commit-timeline">
+            <div id="loading" class="loading">
+                <p>Loading commits...</p>
+            </div>
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="commits-list"></div>
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3>No commits found</h3>
+                <p>Make your first commit to get started</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allCommits = [];
+        let currentFilter = 'all';
+
+        // Load commits on page load
+        document.addEventListener('DOMContentLoaded', loadCommits);
+
+        // Filter button handlers
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                renderCommits();
+            });
+        });
+
+        async function loadCommits() {
+            try {
+                const response = await fetch('/api/commits');
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                allCommits = data.commits || [];
+                
+                // Update stats
+                document.getElementById('total-commits').textContent = data.total || 0;
+                document.getElementById('player-facing').textContent = data.player_facing_count || 0;
+                document.getElementById('announcements').textContent = data.announcement_count || 0;
+
+                // Hide loading, show commits
+                document.getElementById('loading').style.display = 'none';
+                
+                if (allCommits.length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                } else {
+                    renderCommits();
+                }
+            } catch (error) {
+                showError('Failed to load commits: ' + error.message);
+            }
+        }
+
+        function renderCommits() {
+            const container = document.getElementById('commits-list');
+            
+            // Filter commits
+            let filtered = allCommits;
+            if (currentFilter === 'player-facing') {
+                filtered = allCommits.filter(c => c.is_player_facing);
+            } else if (currentFilter === 'announcements') {
+                filtered = allCommits.filter(c => c.triggered_announcement);
+            } else if (currentFilter === 'internal') {
+                filtered = allCommits.filter(c => !c.is_player_facing);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No commits match this filter</p></div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(commit => {
+                const classes = ['commit-item'];
+                if (commit.is_player_facing) classes.push('player-facing');
+                if (commit.triggered_announcement) classes.push('has-announcement');
+
+                const date = new Date(commit.date);
+                const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+
+                let filesHtml = '';
+                if (commit.files_changed && commit.files_changed.length > 0) {
+                    filesHtml = `
+                        <div class="commit-files">
+                            <strong>Files changed (${commit.files_changed.length}):</strong><br>
+                            ${commit.files_changed.map(f => `<span class="file-tag">${f}</span>`).join('')}
+                        </div>
+                    `;
+                }
+
+                let announcementHtml = '';
+                if (commit.triggered_announcement) {
+                    announcementHtml = `
+                        <div class="announcement-badge">
+                            📢 <strong>Triggered Announcement:</strong> ${commit.announcement_title || 'Untitled'}<br>
+                            <small>${new Date(commit.announcement_timestamp).toLocaleString()}</small>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="${classes.join(' ')}">
+                        <div class="commit-header">
+                            <div>
+                                <span class="commit-sha">${commit.sha}</span>
+                                <span class="commit-type ${commit.commit_type}">${commit.commit_type}</span>
+                                ${commit.has_screenshot ? '📸' : ''}
+                            </div>
+                        </div>
+                        <div class="commit-message">${escapeHtml(commit.message)}</div>
+                        <div class="commit-meta">
+                            <div class="commit-meta-item">
+                                👤 ${escapeHtml(commit.author)}
+                            </div>
+                            <div class="commit-meta-item">
+                                📅 ${formattedDate}
+                            </div>
+                            ${commit.is_player_facing ? '<div class="commit-meta-item">✅ Player-Facing</div>' : ''}
+                        </div>
+                        ${filesHtml}
+                        ${announcementHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -38,6 +38,7 @@ class WorkflowRun(BaseModel):
     """Record of a single workflow run."""
     timestamp: str
     tag: Optional[str] = None
+    commit_sha: Optional[str] = None
     status: str  # "success", "failed", "skipped"
     draft_title: Optional[str] = None
     error: Optional[str] = None
@@ -201,6 +202,7 @@ class StateManager:
             run = WorkflowRun(
                 timestamp=now,
                 tag=tag,
+                commit_sha=commit_sha,
                 status=status,
                 draft_title=draft.title if draft else None,
                 error=error

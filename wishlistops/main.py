@@ -28,7 +28,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from git.exc import InvalidGitRepositoryError
 
@@ -307,8 +307,11 @@ class WishlistOpsOrchestrator:
         logger.info("Generating announcement with AI")
         
         try:
-            # Build context from config
-            context = self._build_ai_context(commits)
+            # Fetch Steam game context for better announcements
+            game_context = await self._fetch_game_context()
+            
+            # Build context from config and commits
+            context = await self._build_ai_context(commits, game_context)
             
             logger.debug("AI context built", extra={"context_length": len(context)})
             
@@ -476,12 +479,38 @@ Personality: {self.config.voice.personality}
             logger.error(f"Error sending approval request: {e}", exc_info=True)
             raise WorkflowError(f"Failed to send approval request: {e}") from e
     
-    def _build_ai_context(self, commits: list[Commit]) -> str:
+    
+    async def _fetch_game_context(self) -> Optional[Dict[str, Any]]:
         """
-        Build AI prompt context from commits and config.
+        Fetch Steam game context for better announcement generation.
+        
+        Returns:
+            Game context dictionary or None if unavailable
+        """
+        try:
+            from .steam_client import SteamClient
+            
+            if not self.config.steam_api_key:
+                logger.warning("Steam API key not configured, skipping game context")
+                return None
+            
+            client = SteamClient(self.config.steam_api_key)
+            context = await client.get_game_context(self.config.steam.app_id)
+            
+            logger.info(f"Fetched game context for {context.get('name', 'Unknown')}")
+            return context
+            
+        except Exception as e:
+            logger.warning(f"Failed to fetch game context: {e}")
+            return None
+    
+    async def _build_ai_context(self, commits: list[Commit], game_context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Build AI prompt context from commits, config, and game data.
         
         Args:
             commits: List of commits to include in context
+            game_context: Optional Steam game context data
             
         Returns:
             Formatted prompt string
@@ -496,14 +525,32 @@ Personality: {self.config.voice.personality}
         
         commits_text = "\n".join(commit_summaries)
         
+        # Build game context section
+        game_info = ""
+        if game_context:
+            game_info = f"""
+GAME INFORMATION (from Steam):
+- Name: {game_context.get('name', self.config.steam.app_name)}
+- Description: {game_context.get('short_description', 'N/A')[:200]}
+- Genres: {', '.join(game_context.get('genres', []))}
+- Categories: {', '.join(game_context.get('categories', [])[:5])}
+- Developers: {', '.join(game_context.get('developers', []))}
+
+RECENT ANNOUNCEMENTS (for context):
+"""
+            # Add snippets from recent news for consistency
+            recent_news = game_context.get('recent_news', [])
+            if recent_news:
+                for news in recent_news[:2]:  # Last 2 announcements
+                    title = news.get('title', '')[:80]
+                    game_info += f"- {title}\n"
+            else:
+                game_info += "- (No recent announcements)\n"
+        
         # Build full prompt
         prompt = f"""
 You are writing a Steam announcement for the game "{self.config.steam.app_name}".
-
-GAME CONTEXT:
-- Steam App ID: {self.config.steam.app_id}
-- Game Name: {self.config.steam.app_name}
-
+{game_info}
 WRITING STYLE:
 - Tone: {self.config.voice.tone}
 - Personality: {self.config.voice.personality}
@@ -519,6 +566,8 @@ REQUIREMENTS:
 - Focus on player-facing improvements
 - Be specific about what changed
 - Maintain the specified tone and personality
+- Match the style and tone of previous announcements
+- Consider the game's genre and target audience
 
 FORMAT:
 Return a JSON object with "title" and "body" keys.

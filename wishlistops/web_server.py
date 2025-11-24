@@ -74,14 +74,24 @@ class WishlistOpsWebServer:
         self.app.router.add_get('/', self.handle_index)
         self.app.router.add_get('/setup', self.handle_setup)
         self.app.router.add_get('/monitor', self.handle_monitor)
+        self.app.router.add_get('/commits', self.handle_commits)
+        self.app.router.add_get('/test', self.handle_test)
         self.app.router.add_get('/docs', self.handle_docs)
         
         # API endpoints
         self.app.router.add_get('/api/status', self.handle_status)
+        self.app.router.add_get('/api/health', self.handle_health)
+        self.app.router.add_get('/api/version', self.handle_version)
         self.app.router.add_get('/api/projects', self.handle_projects)
+        self.app.router.add_get('/api/config', self.handle_get_config)
         self.app.router.add_post('/api/config', self.handle_save_config)
         self.app.router.add_get('/api/announcements', self.handle_announcements)
+        self.app.router.add_get('/api/commits', self.handle_api_commits)
+        self.app.router.add_post('/api/test-announcement', self.handle_test_announcement)
         self.app.router.add_get('/api/steam/games', self.handle_steam_games)
+        self.app.router.add_get('/api/steam/game/{app_id}', self.handle_steam_game_context)
+        self.app.router.add_get('/api/export/announcement/{run_id}', self.handle_export_announcement)
+        self.app.router.add_get('/api/export/banner/{filename}', self.handle_export_banner)
         
         # OAuth callbacks
         self.app.router.add_get('/auth/github', self.handle_github_auth)
@@ -119,6 +129,18 @@ class WishlistOpsWebServer:
             Path(__file__).parent.parent / "dashboard" / "monitor.html"
         )
     
+    async def handle_commits(self, request: web.Request) -> web.Response:
+        """Serve commit history page."""
+        return web.FileResponse(
+            Path(__file__).parent.parent / "dashboard" / "commits.html"
+        )
+    
+    async def handle_test(self, request: web.Request) -> web.Response:
+        """Serve test announcement page."""
+        return web.FileResponse(
+            Path(__file__).parent.parent / "dashboard" / "test.html"
+        )
+    
     async def handle_docs(self, request: web.Request) -> web.Response:
         """Serve documentation page."""
         return web.FileResponse(
@@ -149,6 +171,53 @@ class WishlistOpsWebServer:
         
         return web.json_response(status)
     
+    async def handle_health(self, request: web.Request) -> web.Response:
+        """Health check endpoint for monitoring."""
+        health_data = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "services": {
+                "config": self.config is not None,
+                "web_server": True
+            }
+        }
+        
+        # Check if critical environment variables are set
+        env_checks = {
+            "STEAM_API_KEY": bool(os.getenv("STEAM_API_KEY")),
+            "GOOGLE_AI_KEY": bool(os.getenv("GOOGLE_AI_KEY")),
+            "DISCORD_WEBHOOK_URL": bool(os.getenv("DISCORD_WEBHOOK_URL"))
+        }
+        health_data["environment"] = env_checks
+        
+        # Determine overall health
+        if not any(env_checks.values()):
+            health_data["status"] = "degraded"
+            health_data["message"] = "No API keys configured"
+        
+        return web.json_response(health_data)
+    
+    async def handle_version(self, request: web.Request) -> web.Response:
+        """Version information endpoint."""
+        version_data = {
+            "version": "1.0.0",
+            "name": "WishlistOps",
+            "description": "Automated Steam announcement generation from Git commits",
+            "author": "Your Name",
+            "license": "MIT",
+            "repository": "https://github.com/yourusername/wishlistops",
+            "features": [
+                "AI-powered announcement generation",
+                "Discord approval workflow",
+                "Steam game context integration",
+                "Anti-slop content filtering",
+                "Git commit analysis",
+                "Beautiful web dashboard"
+            ]
+        }
+        return web.json_response(version_data)
+    
     async def handle_projects(self, request: web.Request) -> web.Response:
         """Get user's GitHub projects."""
         session = await get_session(request)
@@ -162,6 +231,41 @@ class WishlistOpsWebServer:
         except Exception as e:
             logger.error(f"Failed to fetch projects: {e}")
             return web.json_response({"error": str(e)}, status=500)
+    
+    async def handle_get_config(self, request: web.Request) -> web.Response:
+        """Get current configuration."""
+        try:
+            if self.config:
+                # Return safe config data (no secrets)
+                config_data = {
+                    "steam": {
+                        "app_id": getattr(self.config.steam, 'app_id', ''),
+                        "app_name": getattr(self.config.steam, 'app_name', '')
+                    } if hasattr(self.config, 'steam') else {},
+                    "branding": {
+                        "art_style": getattr(self.config.branding, 'art_style', ''),
+                        "color_palette": getattr(self.config.branding, 'color_palette', []),
+                        "logo_position": getattr(self.config.branding, 'logo_position', 'center'),
+                        "logo_size_percent": getattr(self.config.branding, 'logo_size_percent', 30)
+                    } if hasattr(self.config, 'branding') else {},
+                    "voice": {
+                        "tone": getattr(self.config.voice, 'tone', ''),
+                        "personality": getattr(self.config.voice, 'personality', ''),
+                        "avoid_phrases": getattr(self.config.voice, 'avoid_phrases', [])
+                    } if hasattr(self.config, 'voice') else {},
+                    "automation": {
+                        "enabled": getattr(self.config.automation, 'enabled', True),
+                        "trigger_on_tags": getattr(self.config.automation, 'trigger_on_tags', True),
+                        "min_days_between_posts": getattr(self.config.automation, 'min_days_between_posts', 7),
+                        "require_manual_approval": getattr(self.config.automation, 'require_manual_approval', True)
+                    } if hasattr(self.config, 'automation') else {}
+                }
+                return web.json_response({"config": config_data})
+            else:
+                return web.json_response({"config": None})
+        except Exception as e:
+            logger.error(f"Failed to get config: {e}")
+            return web.json_response({"config": None})
     
     async def handle_save_config(self, request: web.Request) -> web.Response:
         """Save configuration."""
@@ -209,15 +313,97 @@ class WishlistOpsWebServer:
             return web.json_response({"announcements": []})
     
     async def handle_steam_games(self, request: web.Request) -> web.Response:
-        """Detect Steam games from GitHub repos."""
+        """Detect Steam games from user's library."""
         session = await get_session(request)
         
-        if not session.get('github_token'):
-            return web.json_response({"error": "Not authenticated"}, status=401)
+        # Get Steam credentials from session or config
+        steam_api_key = session.get('steam_api_key') or os.getenv('STEAM_API_KEY')
+        steam_id = session.get('steam_id') or os.getenv('STEAM_ID')
         
-        # TODO: Implement Steam game detection
-        # This would scan repos for Steam app IDs in configs
-        return web.json_response({"games": []})
+        if not steam_api_key:
+            return web.json_response({
+                "error": "Steam API key not configured",
+                "message": "Please add STEAM_API_KEY to your environment or setup",
+                "games": []
+            })
+        
+        if not steam_id:
+            return web.json_response({
+                "error": "Steam ID not configured",
+                "message": "Please add STEAM_ID to your environment or setup",
+                "games": []
+            })
+        
+        try:
+            from .steam_client import SteamClient
+            
+            client = SteamClient(steam_api_key)
+            
+            # Get user's owned games
+            games = await client.get_owned_games(steam_id)
+            
+            # Format for response
+            games_data = [{
+                "app_id": game.app_id,
+                "name": game.name,
+                "playtime_minutes": game.playtime_minutes,
+                "playtime_hours": round(game.playtime_minutes / 60, 1),
+                "has_stats": game.has_community_visible_stats,
+                "icon_url": f"https://media.steampowered.com/steamcommunity/public/images/apps/{game.app_id}/{game.img_icon_url}.jpg" if game.img_icon_url else None,
+                "logo_url": f"https://media.steampowered.com/steamcommunity/public/images/apps/{game.app_id}/{game.img_logo_url}.jpg" if game.img_logo_url else None
+            } for game in games]
+            
+            # Sort by playtime (likely developer games first)
+            games_data.sort(key=lambda x: x['playtime_minutes'], reverse=True)
+            
+            return web.json_response({
+                "games": games_data,
+                "total": len(games_data),
+                "steam_id": steam_id
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch Steam games: {e}", exc_info=True)
+            return web.json_response({
+                "error": str(e),
+                "games": []
+            }, status=500)
+    
+    async def handle_steam_game_context(self, request: web.Request) -> web.Response:
+        """Get detailed game context for announcement generation."""
+        app_id = request.match_info.get('app_id')
+        
+        if not app_id:
+            return web.json_response({"error": "App ID required"}, status=400)
+        
+        # Get Steam API key
+        steam_api_key = os.getenv('STEAM_API_KEY')
+        
+        if not steam_api_key:
+            return web.json_response({
+                "error": "Steam API key not configured",
+                "message": "Please add STEAM_API_KEY to your environment"
+            }, status=400)
+        
+        try:
+            from .steam_client import SteamClient
+            
+            client = SteamClient(steam_api_key)
+            
+            # Get enriched game context
+            context = await client.get_game_context(app_id)
+            
+            return web.json_response({
+                "success": True,
+                "context": context
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch game context for {app_id}: {e}", exc_info=True)
+            return web.json_response({
+                "error": str(e),
+                "context": None
+            }, status=500)
     
     # OAuth Handlers - GitHub
     
@@ -378,6 +564,199 @@ class WishlistOpsWebServer:
         session.clear()
         
         return web.json_response({"success": True})
+    
+    # Commit History API
+    
+    async def handle_api_commits(self, request: web.Request) -> web.Response:
+        """Get commit history with announcement associations."""
+        try:
+            from .git_parser import GitParser
+            
+            # Get repo path from config or use current directory
+            repo_path = Path.cwd()
+            if self.config and hasattr(self.config, 'repo_path'):
+                repo_path = Path(self.config.repo_path)
+            
+            parser = GitParser(repo_path)
+            
+            # Get commits (limit to last 100)
+            all_commits = parser.get_commits_since_tag(None)[:100]
+            
+            # Load state to check which commits triggered announcements
+            state_path = self.config_path.parent / "state.json"
+            state_manager = StateManager(state_path) if state_path.exists() else None
+            
+            # Build response with commit details
+            commits_data = []
+            for commit in all_commits:
+                commit_data = {
+                    "sha": commit.sha,
+                    "message": commit.message.split('\\n')[0][:100],  # First line only
+                    "full_message": commit.message,
+                    "author": commit.author,
+                    "date": commit.date.isoformat(),
+                    "is_player_facing": commit.is_player_facing,
+                    "commit_type": commit.commit_type,
+                    "files_changed": commit.files_changed[:10],  # Limit file list
+                    "has_screenshot": commit.screenshot_path is not None,
+                    "triggered_announcement": False  # Will be populated from state
+                }
+                
+                # Check if this commit triggered an announcement
+                if state_manager:
+                    for run in state_manager.state.recent_runs:
+                        if run.draft_title and commit.sha in commit.message:
+                            commit_data["triggered_announcement"] = True
+                            commit_data["announcement_title"] = run.draft_title
+                            commit_data["announcement_timestamp"] = run.timestamp
+                            break
+                
+                commits_data.append(commit_data)
+            
+            return web.json_response({
+                "commits": commits_data,
+                "total": len(commits_data),
+                "player_facing_count": sum(1 for c in commits_data if c["is_player_facing"]),
+                "announcement_count": sum(1 for c in commits_data if c["triggered_announcement"])
+            })
+        
+        except Exception as e:
+            logger.error(f"Failed to fetch commits: {e}", exc_info=True)
+            return web.json_response({"error": str(e), "commits": []}, status=500)
+    
+    # Test Announcement API
+    
+    async def handle_test_announcement(self, request: web.Request) -> web.Response:
+        """Create and send a test announcement."""
+        try:
+            from .discord_notifier import DiscordNotifier
+            from .models import AnnouncementDraft
+            
+            data = await request.json()
+            title = data.get('title', '')
+            body = data.get('body', '')
+            
+            if not title or not body:
+                return web.json_response({"error": "Title and body required"}, status=400)
+            
+            # Create draft
+            draft = AnnouncementDraft(
+                title=title,
+                body=body,
+                created_at=datetime.now().isoformat()
+            )
+            
+            # Send to Discord if configured
+            discord_sent = False
+            if self.config and hasattr(self.config, 'discord_webhook_url'):
+                notifier = DiscordNotifier(self.config.discord_webhook_url)
+                try:
+                    await notifier.send_approval_request(
+                        title=draft.title,
+                        body=draft.body,
+                        game_name=getattr(self.config.steam, 'app_name', 'Test Game'),
+                        tag="manual-test",
+                        steam_app_id=getattr(self.config.steam, 'app_id', None)
+                    )
+                    discord_sent = True
+                except Exception as e:
+                    logger.warning(f"Failed to send to Discord: {e}")
+            
+            # Generate Steam URL (manual posting required)
+            steam_url = None
+            if self.config and hasattr(self.config, 'steam'):
+                app_id = getattr(self.config.steam, 'app_id', None)
+                if app_id:
+                    steam_url = f"https://partner.steamgames.com/apps/landing/{app_id}"
+            
+            return web.json_response({
+                "success": True,
+                "draft": {
+                    "title": draft.title,
+                    "body": draft.body,
+                    "created_at": draft.created_at
+                },
+                "discord_sent": discord_sent,
+                "steam_url": steam_url,
+                "note": "Steam has no public posting API. Visit the Steam URL to manually publish."
+            })
+        
+        except Exception as e:
+            logger.error(f"Failed to create test announcement: {e}", exc_info=True)
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def handle_export_announcement(self, request: web.Request) -> web.Response:
+        """Export announcement as downloadable text file."""
+        run_id = request.match_info.get('run_id')
+        
+        if not run_id:
+            return web.json_response({"error": "Run ID required"}, status=400)
+        
+        try:
+            # Load state to find the announcement
+            state_manager = StateManager()
+            runs = state_manager.load_recent_runs(limit=100)
+            
+            # Find the specific run
+            target_run = None
+            for run in runs:
+                if run.id == run_id:
+                    target_run = run
+                    break
+            
+            if not target_run or not target_run.draft:
+                return web.json_response({"error": "Announcement not found"}, status=404)
+            
+            # Format announcement text
+            announcement_text = f"{target_run.draft.title}\n\n{target_run.draft.body}"
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"announcement_{timestamp}.txt"
+            
+            # Return as downloadable file
+            return web.Response(
+                body=announcement_text.encode('utf-8'),
+                headers={
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Content-Disposition': f'attachment; filename="{filename}"'
+                }
+            )
+        
+        except Exception as e:
+            logger.error(f"Failed to export announcement: {e}", exc_info=True)
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def handle_export_banner(self, request: web.Request) -> web.Response:
+        """Export banner image as downloadable file."""
+        filename = request.match_info.get('filename')
+        
+        if not filename:
+            return web.json_response({"error": "Filename required"}, status=400)
+        
+        try:
+            # Look for banner in banners directory
+            banners_dir = Path("wishlistops/banners")
+            banner_path = banners_dir / filename
+            
+            if not banner_path.exists():
+                return web.json_response({"error": "Banner not found"}, status=404)
+            
+            # Read banner file
+            banner_bytes = banner_path.read_bytes()
+            
+            # Return as downloadable file
+            return web.Response(
+                body=banner_bytes,
+                headers={
+                    'Content-Type': 'image/png',
+                    'Content-Disposition': f'attachment; filename="{filename}"'
+                }
+            )
+        
+        except Exception as e:
+            logger.error(f"Failed to export banner: {e}", exc_info=True)
+            return web.json_response({"error": str(e)}, status=500)
     
     # Helper methods
     

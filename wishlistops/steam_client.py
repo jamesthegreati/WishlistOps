@@ -186,6 +186,156 @@ class SteamClient:
         
         logger.info(f"Found {len(matching_games)} games matching '{search_term}'")
         return matching_games
+    
+    async def get_game_context(self, app_id: str) -> Dict[str, Any]:
+        """
+        Get enriched game context for AI announcement generation.
+        
+        Fetches detailed information including description, genres, tags,
+        developers, and recent news to provide context for better announcements.
+        
+        Args:
+            app_id: Steam App ID
+            
+        Returns:
+            Dictionary with game context including:
+                - name: Game name
+                - description: Short and detailed descriptions
+                - genres: List of genre names
+                - tags: Popular user tags
+                - developers: Developer names
+                - publishers: Publisher names
+                - release_date: Release date info
+                - recent_news: Last 3 news items
+                - header_image: Banner image URL
+        """
+        logger.info(f"Fetching game context for App ID: {app_id}")
+        
+        context = {
+            "app_id": app_id,
+            "name": "",
+            "short_description": "",
+            "detailed_description": "",
+            "about_the_game": "",
+            "genres": [],
+            "tags": [],
+            "developers": [],
+            "publishers": [],
+            "release_date": {},
+            "recent_news": [],
+            "header_image": "",
+            "screenshots": [],
+            "categories": []
+        }
+        
+        # Get app details from Store API
+        app_details = await self.get_app_details(app_id)
+        
+        if app_details:
+            context["name"] = app_details.get("name", "")
+            context["short_description"] = app_details.get("short_description", "")
+            context["detailed_description"] = app_details.get("detailed_description", "")
+            context["about_the_game"] = app_details.get("about_the_game", "")
+            context["header_image"] = app_details.get("header_image", "")
+            context["developers"] = app_details.get("developers", [])
+            context["publishers"] = app_details.get("publishers", [])
+            context["release_date"] = app_details.get("release_date", {})
+            
+            # Extract genres
+            if "genres" in app_details:
+                context["genres"] = [g.get("description", "") for g in app_details["genres"]]
+            
+            # Extract categories
+            if "categories" in app_details:
+                context["categories"] = [c.get("description", "") for c in app_details["categories"]]
+            
+            # Extract screenshots
+            if "screenshots" in app_details:
+                context["screenshots"] = [
+                    s.get("path_full", "") for s in app_details["screenshots"][:5]
+                ]
+        
+        # Get recent news (last 3 items)
+        try:
+            news_items = await self.get_app_news(app_id, count=3)
+            context["recent_news"] = news_items
+        except Exception as e:
+            logger.warning(f"Failed to fetch news for {app_id}: {e}")
+        
+        logger.info(f"Game context fetched: {context['name']}")
+        return context
+    
+    async def get_app_news(self, app_id: str, count: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get recent news/announcements for a game.
+        
+        Args:
+            app_id: Steam App ID
+            count: Number of news items to retrieve (default 5)
+            
+        Returns:
+            List of news items with title, contents, date, etc.
+        """
+        logger.info(f"Fetching news for App ID: {app_id}")
+        
+        url = f"{self.BASE_URL}/ISteamNews/GetNewsForApp/v2/"
+        params = {
+            "appid": app_id,
+            "count": count,
+            "maxlength": 500,  # Truncate long news items
+            "format": "json"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as response:
+                response.raise_for_status()
+                data = await response.json()
+                
+                news_items = data.get("appnews", {}).get("newsitems", [])
+                
+                # Format news items
+                formatted_news = []
+                for item in news_items:
+                    formatted_news.append({
+                        "title": item.get("title", ""),
+                        "contents": item.get("contents", ""),
+                        "author": item.get("author", ""),
+                        "date": item.get("date", 0),
+                        "url": item.get("url", "")
+                    })
+                
+                logger.info(f"Found {len(formatted_news)} news items")
+                return formatted_news
+    
+    async def get_player_summary(self, steam_id: str) -> Dict[str, Any]:
+        """
+        Get player summary information.
+        
+        Args:
+            steam_id: Steam ID (64-bit)
+            
+        Returns:
+            Player profile information
+        """
+        logger.info(f"Fetching player summary for Steam ID: {steam_id}")
+        
+        url = f"{self.BASE_URL}/ISteamUser/GetPlayerSummaries/v0002/"
+        params = {
+            "key": self.api_key,
+            "steamids": steam_id
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as response:
+                response.raise_for_status()
+                data = await response.json()
+                
+                players = data.get("response", {}).get("players", [])
+                
+                if players:
+                    return players[0]
+                
+                return {}
 
 
 async def get_steam_games(api_key: str, steam_id: str) -> List[SteamGame]:
