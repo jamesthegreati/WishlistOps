@@ -2,6 +2,7 @@
 Interactive CLI Interface for WishlistOps
 
 Provides a rich terminal UI for users who prefer command-line workflows.
+Handles missing environment variables gracefully with guided setup.
 """
 
 import sys
@@ -22,14 +23,56 @@ try:
 except ImportError:
     CLI_AVAILABLE = False
     print("❌ Interactive CLI requires additional dependencies.")
-    print("Install with: pip install wishlistops[cli]")
+    print("Install with: pip install questionary rich")
     sys.exit(1)
 
-from .config_manager import load_config, save_config, ConfigurationError
-from .git_parser import GitParser
-from .ai_client import AIClient
-from .models import AnnouncementDraft, Commit
-from datetime import datetime
+# Check for environment variables - run onboarding if missing
+def check_environment():
+    """Check if environment is configured, offer onboarding if not."""
+    env_file = Path.cwd() / ".env"
+    
+    required_vars = ['STEAM_API_KEY', 'GOOGLE_API_KEY']
+    missing_vars = []
+    
+    if not env_file.exists():
+        return run_onboarding()
+    
+    # Load and check .env
+    with open(env_file) as f:
+        env_content = f.read()
+        for var in required_vars:
+            if f"{var}=" not in env_content:
+                missing_vars.append(var)
+    
+    if missing_vars:
+        console.print(f"[yellow]⚠️  Missing required environment variables: {', '.join(missing_vars)}[/yellow]")
+        if questionary.confirm("Run setup wizard?", default=True).ask():
+            return run_onboarding()
+        return False
+    
+    return True
+
+def run_onboarding():
+    """Run the onboarding wizard."""
+    from .onboarding import main as onboarding_main
+    try:
+        onboarding_main()
+        return True
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Setup cancelled.[/yellow]")
+        return False
+
+try:
+    from .config_manager import load_config, save_config, ConfigurationError
+    from .git_parser import GitParser
+    from .ai_client import AIClient
+    from .models import AnnouncementDraft, Commit
+    from datetime import datetime
+except ImportError as e:
+    console = Console()
+    console.print(f"[red]Error importing modules: {e}[/red]")
+    console.print("[yellow]Make sure WishlistOps is properly installed.[/yellow]")
+    sys.exit(1)
 
 console = Console()
 
@@ -43,48 +86,60 @@ class WishlistOpsCLI:
         self.git_parser = None
         
     async def run(self):
-        """Main CLI loop."""
-        console.clear()
-        self.show_banner()
+        """Main CLI loop with graceful error handling."""
+        try:
+            console.clear()
+            self.show_banner()
+            
+            # Check environment first
+            if not check_environment():
+                console.print("[red]Environment setup required. Exiting.[/red]")
+                return
+            
+            # Load or create config
+            if not await self.ensure_config():
+                console.print("[red]Configuration required. Please run setup.[/red]")
+                return
         
-        # Load or create config
-        if not await self.ensure_config():
-            return
-        
-        while True:
-            try:
-                action = questionary.select(
-                    "What would you like to do?",
-                    choices=[
-                        Choice("📝 Generate Announcement", "generate"),
-                        Choice("📊 View Commit History", "commits"),
-                        Choice("⚙️  Configure Settings", "config"),
-                        Choice("🧪 Test Configuration", "test"),
-                        Choice("📤 Upload Images", "upload"),
-                        Choice("🔍 View State", "state"),
-                        Choice("❌ Exit", "exit")
-                    ]
-                ).ask()
-                
-                if action == "exit":
-                    console.print("\n👋 Goodbye!", style="bold green")
-                    break
-                elif action == "generate":
-                    await self.generate_announcement()
-                elif action == "commits":
-                    await self.view_commits()
-                elif action == "config":
-                    await self.configure()
-                elif action == "test":
-                    await self.test_config()
-                elif action == "upload":
-                    await self.upload_images()
-                elif action == "state":
-                    await self.view_state()
+            while True:
+                try:
+                    action = questionary.select(
+                        "What would you like to do?",
+                        choices=[
+                            Choice("📝 Generate Announcement", "generate"),
+                            Choice("📊 View Commit History", "commits"),
+                            Choice("⚙️  Configure Settings", "config"),
+                            Choice("🧪 Test Configuration", "test"),
+                            Choice("📤 Upload Images", "upload"),
+                            Choice("🔍 View State", "state"),
+                            Choice("❌ Exit", "exit")
+                        ]
+                    ).ask()
                     
-            except KeyboardInterrupt:
-                console.print("\n\n👋 Goodbye!", style="bold green")
-                break
+                    if action == "exit":
+                        console.print("\n👋 Goodbye!", style="bold green")
+                        break
+                    elif action == "generate":
+                        await self.generate_announcement()
+                    elif action == "commits":
+                        await self.view_commits()
+                    elif action == "config":
+                        await self.configure()
+                    elif action == "test":
+                        await self.test_config()
+                    elif action == "upload":
+                        await self.upload_images()
+                    elif action == "state":
+                        await self.view_state()
+                        
+                except KeyboardInterrupt:
+                    console.print("\n\n👋 Goodbye!", style="bold green")
+                    break
+        
+        except Exception as e:
+            console.print(f"[red]✗ Error: {e}[/red]")
+            console.print("[yellow]Run 'wishlistops setup' to reconfigure.[/yellow]")
+            return
     
     def show_banner(self):
         """Display welcome banner."""
