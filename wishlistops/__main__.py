@@ -35,7 +35,22 @@ def launch_web_interface():
         sys.exit(1)
     
     print("🚀 Launching WishlistOps Web Interface...")
-    server = WishlistOpsWebServer()
+    
+    # Use default config path in current directory
+    config_path = Path.cwd() / "wishlistops" / "config.json"
+    
+    # If not found, try common locations
+    if not config_path.exists():
+        alt_paths = [
+            Path.cwd() / "config.json",
+            Path.home() / ".wishlistops" / "config.json",
+        ]
+        for alt_path in alt_paths:
+            if alt_path.exists():
+                config_path = alt_path
+                break
+    
+    server = WishlistOpsWebServer(config_path)
     
     try:
         asyncio.run(server.start())
