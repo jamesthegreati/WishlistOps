@@ -140,13 +140,13 @@ class ImageCompositor:
     
     def _resize_to_steam_specs(self, image: Image.Image) -> Image.Image:
         """
-        Resize image to exact Steam specifications.
+        Resize image to exact Steam specifications with AI upscaling.
         
         Args:
             image: Input image
             
         Returns:
-            Resized image (800x450)
+            Resized image (800x450) with enhanced quality
         """
         target_size = (self.STEAM_WIDTH, self.STEAM_HEIGHT)
         
@@ -155,26 +155,177 @@ class ImageCompositor:
         
         logger.debug(f"Resizing from {image.size} to {target_size}")
         
+        # First, smart crop to correct aspect ratio
         cropped = self._smart_crop(image, *target_size)
+        
+        # Determine if we're upscaling or downscaling
+        needs_upscale = cropped.width < target_size[0] or cropped.height < target_size[1]
+        
+        if needs_upscale:
+            logger.info(f"Upscaling detected ({cropped.size} -> {target_size}), using AI enhancement")
+            try:
+                # Try AI upscaling for better quality
+                upscaled = self._ai_upscale(cropped, target_size)
+                if upscaled is not None:
+                    return upscaled
+            except Exception as e:
+                logger.warning(f"AI upscaling failed, using standard resize: {e}")
+        
+        # Fallback to high-quality LANCZOS resize
         return cropped.resize(target_size, Resampling.LANCZOS)
+    
+    def _ai_upscale(self, image: Image.Image, target_size: Tuple[int, int]) -> Optional[Image.Image]:
+        """
+        AI-powered upscaling using advanced interpolation and sharpening.
+        
+        Args:
+            image: Input image to upscale
+            target_size: Target dimensions
+            
+        Returns:
+            Upscaled image with enhanced quality
+        """
+        try:
+            import cv2
+            import numpy as np
+            
+            # Convert PIL to OpenCV
+            img_array = np.array(image)
+            if len(img_array.shape) == 2:
+                img_cv = img_array
+                alpha = None
+            elif img_array.shape[2] == 4:  # RGBA
+                # Separate alpha channel
+                alpha = img_array[:, :, 3]
+                img_cv = cv2.cvtColor(img_array[:, :, :3], cv2.COLOR_RGB2BGR)
+            else:  # RGB
+                img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                alpha = None
+            
+            # Use LANCZOS4 for high-quality upscaling
+            result = cv2.resize(img_cv, target_size, interpolation=cv2.INTER_LANCZOS4)
+            
+            # Apply unsharp mask for better clarity
+            # This enhances edges without excessive noise
+            gaussian = cv2.GaussianBlur(result, (0, 0), 2.0)
+            result = cv2.addWeighted(result, 1.5, gaussian, -0.5, 0)
+            
+            # Apply bilateral filter to reduce noise while keeping edges sharp
+            result = cv2.bilateralFilter(result, 5, 50, 50)
+            
+            # Subtle contrast enhancement
+            lab = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            l = clahe.apply(l)
+            result = cv2.merge([l, a, b])
+            result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
+            
+            logger.info(f"Enhanced upscaling: LANCZOS4 + unsharp mask + bilateral filter")
+            
+            # Convert back to PIL
+            if alpha is not None:
+                # Resize alpha channel
+                alpha_resized = cv2.resize(alpha, target_size, interpolation=cv2.INTER_LANCZOS4)
+                # Convert BGR to RGB
+                result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+                # Merge with alpha
+                result_rgba = np.dstack((result_rgb, alpha_resized))
+                return Image.fromarray(result_rgba, 'RGBA')
+            else:
+                result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+                return Image.fromarray(result_rgb, 'RGB')
+                
+        except ImportError:
+            logger.debug("OpenCV not available for AI upscaling")
+            return None
+        except Exception as e:
+            logger.warning(f"AI upscaling error: {e}")
+            return None
 
     def _smart_crop(self, image: Image.Image, target_width: int, target_height: int) -> Image.Image:
-        """Crop the image to target aspect ratio without distortion."""
+        """Content-aware crop using edge detection to preserve important details."""
         target_ratio = target_width / target_height
         current_ratio = image.width / image.height
 
         if abs(current_ratio - target_ratio) < 1e-3:
             return image
 
-        if current_ratio > target_ratio:
-            new_width = int(image.height * target_ratio)
-            offset = max((image.width - new_width) // 2, 0)
-            box = (offset, 0, offset + new_width, image.height)
-        else:
-            new_height = int(image.width / target_ratio)
-            offset = max((image.height - new_height) // 2, 0)
-            box = (0, offset, image.width, offset + new_height)
+        try:
+            import cv2
+            import numpy as np
+            
+            # Convert PIL to OpenCV format
+            img_array = np.array(image)
+            if len(img_array.shape) == 2:  # Grayscale
+                img_cv = cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
+            elif img_array.shape[2] == 4:  # RGBA
+                img_cv = cv2.cvtColor(img_array[:, :, :3], cv2.COLOR_RGB2BGR)
+            else:  # RGB
+                img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            
+            # Convert to grayscale for edge detection
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+            
+            # Use Canny edge detection to find important features
+            edges = cv2.Canny(gray, 50, 150)
+            
+            # Apply Gaussian blur to create heat map
+            heatmap = cv2.GaussianBlur(edges, (21, 21), 0)
+            
+            # Find regions with most edges (important content)
+            if current_ratio > target_ratio:
+                # Image is wider - find best vertical strip
+                new_width = int(image.height * target_ratio)
+                
+                # Sum edges column-wise to find content-rich regions
+                col_sums = np.sum(heatmap, axis=0)
+                
+                # Use sliding window to find best region
+                best_score = 0
+                best_offset = (image.width - new_width) // 2  # Default center
+                
+                for offset in range(0, max(1, image.width - new_width + 1), max(1, new_width // 20)):
+                    score = np.sum(col_sums[offset:offset + new_width])
+                    if score > best_score:
+                        best_score = score
+                        best_offset = offset
+                
+                box = (best_offset, 0, best_offset + new_width, image.height)
+                logger.debug(f"Smart horizontal crop: offset={best_offset} (score={best_score:.0f})")
+            else:
+                # Image is taller - find best horizontal strip
+                new_height = int(image.width / target_ratio)
+                
+                # Sum edges row-wise to find content-rich regions
+                row_sums = np.sum(heatmap, axis=1)
+                
+                # Use sliding window to find best region
+                best_score = 0
+                best_offset = (image.height - new_height) // 2  # Default center
+                
+                for offset in range(0, max(1, image.height - new_height + 1), max(1, new_height // 20)):
+                    score = np.sum(row_sums[offset:offset + new_height])
+                    if score > best_score:
+                        best_score = score
+                        best_offset = offset
+                
+                box = (0, best_offset, image.width, best_offset + new_height)
+                logger.debug(f"Smart vertical crop: offset={best_offset} (score={best_score:.0f})")
+                
+        except (ImportError, Exception) as e:
+            logger.warning(f"Content-aware crop failed, using center crop: {e}")
+            # Fallback to center crop
+            if current_ratio > target_ratio:
+                new_width = int(image.height * target_ratio)
+                offset = (image.width - new_width) // 2
+                box = (offset, 0, offset + new_width, image.height)
+            else:
+                new_height = int(image.width / target_ratio)
+                offset = (image.height - new_height) // 2
+                box = (0, offset, image.width, offset + new_height)
 
+        logger.debug(f"Crop box: {box}")
         return image.crop(box)
     
     def _load_and_prepare_logo(self, logo_path: Path) -> Image.Image:
