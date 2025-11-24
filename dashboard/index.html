@@ -31,33 +31,198 @@
 
     <!-- Main Content -->
     <main class="main container">
-        <!-- Loading State -->
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p>Loading...</p>
-        </div>
-
-        <!-- Welcome Screen (not signed in) -->
-        <div id="welcome-screen" class="welcome-screen">
-            <h2>Welcome to WishlistOps</h2>
-            <p class="subtitle">Automate your Steam marketing so you can focus on game development.</p>
-            <div class="features">
-                <div class="feature">
-                    <h3>✨ AI-Generated Announcements</h3>
-                    <p>Automatically create Steam announcements from your Git commits</p>
-                </div>
-                <div class="feature">
-                    <h3>🎨 Beautiful Banners</h3>
-                    <p>AI generates custom banners with your game's logo</p>
-                </div>
-                <div class="feature">
-                    <h3>✅ Human Approval</h3>
-                    <p>Review in Discord before posting to Steam</p>
+        <!-- Quick Navigation Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="icon">📊</span>
+                    <span class="label">Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="setup">
+                    <span class="icon">⚙️</span>
+                    <span class="label">Setup</span>
+                </a>
+                <a href="#" class="nav-item" data-view="config">
+                    <span class="icon">🎨</span>
+                    <span class="label">Configure</span>
+                </a>
+                <a href="test.html" class="nav-item">
+                    <span class="icon">🧪</span>
+                    <span class="label">Test</span>
+                </a>
+                <a href="docs.html" class="nav-item">
+                    <span class="icon">📚</span>
+                    <span class="label">Docs</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot" id="system-status"></span>
+                    <span class="status-text" id="status-text">Checking...</span>
                 </div>
             </div>
-            <button class="btn btn-primary btn-large" onclick="document.getElementById('sign-in-btn').click()">
-                Get Started
-            </button>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="content-area">
+            <!-- Loading State -->
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view-content">
+            <div class="page-header">
+                <h2>🎮 Dashboard</h2>
+                <p class="subtitle">Quick overview of your WishlistOps setup</p>
+            </div>
+
+            <!-- Quick Start Guide -->
+            <div class="quick-start-card">
+                <h3>🚀 Quick Start</h3>
+                <div class="steps">
+                    <div class="step" id="step-env">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h4>Set Environment Variables</h4>
+                            <p>Configure your API keys and credentials</p>
+                            <button class="btn btn-sm" onclick="showView('setup')">Setup Now →</button>
+                        </div>
+                        <div class="step-status" id="step-env-status">⏳</div>
+                    </div>
+                    <div class="step" id="step-config">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h4>Configure Your Game</h4>
+                            <p>Set up branding, voice, and automation rules</p>
+                            <button class="btn btn-sm" onclick="showView('config')">Configure →</button>
+                        </div>
+                        <div class="step-status" id="step-config-status">⏳</div>
+                    </div>
+                    <div class="step" id="step-test">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h4>Test Your Setup</h4>
+                            <p>Generate a test announcement to verify everything works</p>
+                            <button class="btn btn-sm" onclick="location.href='test.html'">Test Now →</button>
+                        </div>
+                        <div class="step-status" id="step-test-status">⏳</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Cards -->
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="card-header">
+                        <span class="card-icon">🔑</span>
+                        <h4>API Keys</h4>
+                    </div>
+                    <div class="card-body" id="api-status">
+                        <div class="status-item">
+                            <span>Steam API</span>
+                            <span class="badge" id="steam-status">Not Set</span>
+                        </div>
+                        <div class="status-item">
+                            <span>Google AI</span>
+                            <span class="badge" id="google-status">Not Set</span>
+                        </div>
+                        <div class="status-item">
+                            <span>Discord</span>
+                            <span class="badge" id="discord-status">Not Set</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-card">
+                    <div class="card-header">
+                        <span class="card-icon">📋</span>
+                        <h4>Configuration</h4>
+                    </div>
+                    <div class="card-body" id="config-status">
+                        <div class="status-item">
+                            <span>Game Settings</span>
+                            <span class="badge" id="game-config-status">Not Set</span>
+                        </div>
+                        <div class="status-item">
+                            <span>Branding</span>
+                            <span class="badge" id="branding-status">Not Set</span>
+                        </div>
+                        <div class="status-item">
+                            <span>Automation</span>
+                            <span class="badge" id="automation-status">Disabled</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-card">
+                    <div class="card-header">
+                        <span class="card-icon">📊</span>
+                        <h4>Recent Activity</h4>
+                    </div>
+                    <div class="card-body" id="activity-log">
+                        <p class="empty-state">No recent activity</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup View -->
+        <div id="setup-view" class="view-content hidden">
+            <div class="page-header">
+                <h2>⚙️ Environment Setup</h2>
+                <p class="subtitle">Configure your API keys and credentials</p>
+            </div>
+
+            <div class="setup-instructions">
+                <div class="alert alert-info">
+                    <strong>💡 Tip:</strong> Your credentials are stored locally in <code>.env</code> file. Never commit this file to Git!
+                </div>
+            </div>
+
+            <form id="env-form" class="env-form">
+                <div class="env-section">
+                    <h3>🎮 Steam API</h3>
+                    <div class="form-group">
+                        <label for="env-steam-key">Steam API Key</label>
+                        <input type="password" id="env-steam-key" placeholder="Enter your Steam Web API key">
+                        <small><a href="https://steamcommunity.com/dev/apikey" target="_blank">Get your Steam API key →</a></small>
+                    </div>
+                </div>
+
+                <div class="env-section">
+                    <h3>🤖 Google AI</h3>
+                    <div class="form-group">
+                        <label for="env-google-key">Google AI API Key</label>
+                        <input type="password" id="env-google-key" placeholder="Enter your Google AI API key">
+                        <small><a href="https://makersuite.google.com/app/apikey" target="_blank">Get your Google AI key →</a></small>
+                    </div>
+                </div>
+
+                <div class="env-section">
+                    <h3>💬 Discord Webhook</h3>
+                    <div class="form-group">
+                        <label for="env-discord-webhook">Discord Webhook URL</label>
+                        <input type="url" id="env-discord-webhook" placeholder="https://discord.com/api/webhooks/...">
+                        <small><a href="docs.html#discord-setup" target="_blank">How to create a Discord webhook →</a></small>
+                    </div>
+                </div>
+
+                <div class="env-section">
+                    <h3>📁 Repository</h3>
+                    <div class="form-group">
+                        <label for="env-repo-path">Git Repository Path</label>
+                        <input type="text" id="env-repo-path" placeholder="/path/to/your/game/repo">
+                        <small>Absolute path to your game's Git repository</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-large">💾 Save Environment</button>
+                    <button type="button" class="btn btn-secondary" id="test-connection-btn">🔌 Test Connections</button>
+                </div>
+            </form>
         </div>
 
         <!-- Repository Selection -->
@@ -230,6 +395,6 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="app.js"></script>
+    <script src="app_enhanced.js"></script>
 </body>
 </html>

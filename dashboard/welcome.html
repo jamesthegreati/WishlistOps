@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to WishlistOps 🎮</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .hero {
+            text-align: center;
+            padding: 60px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            margin: 40px 0;
+        }
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .hero p {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+        .get-started-btn {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 18px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .get-started-btn:hover {
+            transform: scale(1.05);
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        .feature-card {
+            background: var(--surface);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .feature-card h3 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 40px 0;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .stat-label {
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <h1>🎮 Welcome to WishlistOps</h1>
+            <p>Automated Steam Marketing for Indie Developers</p>
+            <p style="font-size: 16px; margin-top: 20px;">Stop context-switching. Start shipping.</p>
+            <button class="get-started-btn" onclick="window.location.href='/setup'">
+                Get Started in 2 Minutes →
+            </button>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>AI-Powered Announcements</h3>
+                <p>Automatically generate Steam announcements from your Git commits using Google Gemini AI.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <h3>Beautiful Banners</h3>
+                <p>Use your in-game screenshots with automatic cropping, logo overlay, and Steam-ready formatting.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">✅</div>
+                <h3>Human Approval</h3>
+                <p>Review and approve every announcement in Discord before it goes live. No surprises.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Monitor All Projects</h3>
+                <p>Track announcements across multiple games from one beautiful dashboard.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>100% Local & Secure</h3>
+                <p>All data stays on your machine. No cloud servers. Your API keys never leave your computer.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">💰</div>
+                <h3>$0 Infrastructure</h3>
+                <p>Runs on GitHub Actions free tier. No monthly costs. Ever.</p>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-number">2 min</div>
+                <div class="stat-label">Setup Time</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number">$0</div>
+                <div class="stat-label">Monthly Cost</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number">4 hrs</div>
+                <div class="stat-label">Saved Per Week</div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 60px 0;">
+            <h2>How It Works</h2>
+            <div class="features-grid" style="margin-top: 30px;">
+                <div class="feature-card">
+                    <h3 style="color: var(--primary-color);">1. Connect Services</h3>
+                    <p>Link GitHub, Discord, Steam, and Google AI with guided setup wizards.</p>
+                </div>
+                <div class="feature-card">
+                    <h3 style="color: var(--primary-color);">2. Choose Projects</h3>
+                    <p>Select which game repositories to monitor for updates.</p>
+                </div>
+                <div class="feature-card">
+                    <h3 style="color: var(--primary-color);">3. Ship Updates</h3>
+                    <p>Tag a release, get a Discord notification, approve, and it posts to Steam!</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; background: var(--surface); padding: 40px; border-radius: 12px;">
+            <h2>Ready to Automate Your Marketing?</h2>
+            <p style="color: var(--text-secondary); margin: 20px 0;">Join indie developers saving hours every week</p>
+            <button class="get-started-btn" onclick="window.location.href='/setup'">
+                Start Free Setup →
+            </button>
+        </div>
+    </div>
+
+    <footer class="footer" style="margin-top: 80px;">
+        <div class="container">
+            <p>&copy; 2025 WishlistOps | <a href="https://github.com/jamesthegreati/WishlistOps">GitHub</a> | <a href="/docs">Documentation</a></p>
+        </div>
+    </footer>
+</body>
+</html>

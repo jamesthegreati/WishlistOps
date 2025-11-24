@@ -103,6 +103,13 @@ orjson>=3.9.0             # Fast JSON serialization
 ujson>=5.8.0              # Ultra-fast JSON parser (fallback)
 
 # -------------------------------------------------------------------------
+# Web Dashboard
+# -------------------------------------------------------------------------
+aiohttp>=3.9.0            # Async web server
+aiohttp-session>=2.12.0   # Session management for web dashboard
+cryptography>=41.0.0      # Encryption for session cookies
+
+# -------------------------------------------------------------------------
 # Steam API Specific
 # -------------------------------------------------------------------------
 # Note: No official Steam Web API Python library exists
