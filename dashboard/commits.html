@@ -86,10 +86,32 @@
             margin-bottom: 15px;
             position: relative;
             transition: all 0.2s;
+            display: flex;
+            gap: 15px;
         }
 
         .commit-item:hover {
             background: #f8f9fa;
+            border-left-color: #007bff;
+        }
+
+        .commit-checkbox {
+            flex-shrink: 0;
+            margin-top: 5px;
+        }
+
+        .commit-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .commit-content {
+            flex: 1;
+        }
+
+        .commit-item.selected {
+            background: #e7f3ff;
             border-left-color: #007bff;
         }
 
@@ -274,6 +296,14 @@
                 <button class="filter-btn" data-filter="announcements">With Announcements</button>
                 <button class="filter-btn" data-filter="internal">Internal Only</button>
             </div>
+            <div class="filter-group" style="margin-top: 10px;">
+                <label><strong>Actions:</strong></label>
+                <button class="filter-btn" id="select-all-btn" onclick="selectAll()">✓ Select All</button>
+                <button class="filter-btn" id="deselect-all-btn" onclick="deselectAll()">✗ Deselect All</button>
+                <button class="filter-btn" id="generate-batch-btn" onclick="generateBatchAnnouncement()" style="background: #28a745; color: white; border-color: #28a745;" disabled>
+                    🚀 Generate Announcement (<span id="selected-count">0</span> selected)
+                </button>
+            </div>
         </div>
 
         <!-- Commit Timeline -->
@@ -387,29 +417,120 @@
                 }
 
                 return `
-                    <div class="${classes.join(' ')}">
-                        <div class="commit-header">
-                            <div>
-                                <span class="commit-sha">${commit.sha}</span>
-                                <span class="commit-type ${commit.commit_type}">${commit.commit_type}</span>
-                                ${commit.has_screenshot ? '📸' : ''}
-                            </div>
+                    <div class="${classes.join(' ')}" data-sha="${commit.sha}">
+                        <div class="commit-checkbox">
+                            <input type="checkbox" class="commit-select" value="${commit.sha}" onchange="updateSelectedCount()">
                         </div>
-                        <div class="commit-message">${escapeHtml(commit.message)}</div>
-                        <div class="commit-meta">
-                            <div class="commit-meta-item">
-                                👤 ${escapeHtml(commit.author)}
+                        <div class="commit-content">
+                            <div class="commit-header">
+                                <div>
+                                    <span class="commit-sha">${commit.sha}</span>
+                                    <span class="commit-type ${commit.commit_type}">${commit.commit_type}</span>
+                                    ${commit.has_screenshot ? '📸' : ''}
+                                </div>
                             </div>
-                            <div class="commit-meta-item">
-                                📅 ${formattedDate}
+                            <div class="commit-message">${escapeHtml(commit.message)}</div>
+                            <div class="commit-meta">
+                                <div class="commit-meta-item">
+                                    👤 ${escapeHtml(commit.author)}
+                                </div>
+                                <div class="commit-meta-item">
+                                    📅 ${formattedDate}
+                                </div>
+                                ${commit.is_player_facing ? '<div class="commit-meta-item">✅ Player-Facing</div>' : ''}
                             </div>
-                            ${commit.is_player_facing ? '<div class="commit-meta-item">✅ Player-Facing</div>' : ''}
+                            ${filesHtml}
+                            ${announcementHtml}
                         </div>
-                        ${filesHtml}
-                        ${announcementHtml}
                     </div>
                 `;
             }).join('');
+        }
+
+        function updateSelectedCount() {
+            const selected = document.querySelectorAll('.commit-select:checked');
+            const count = selected.length;
+            document.getElementById('selected-count').textContent = count;
+            document.getElementById('generate-batch-btn').disabled = count === 0;
+            
+            // Update visual selection
+            document.querySelectorAll('.commit-item').forEach(item => {
+                const checkbox = item.querySelector('.commit-select');
+                if (checkbox && checkbox.checked) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        function selectAll() {
+            document.querySelectorAll('.commit-select').forEach(cb => {
+                cb.checked = true;
+            });
+            updateSelectedCount();
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('.commit-select').forEach(cb => {
+                cb.checked = false;
+            });
+            updateSelectedCount();
+        }
+
+        async function generateBatchAnnouncement() {
+            const selected = Array.from(document.querySelectorAll('.commit-select:checked'));
+            const commitShas = selected.map(cb => cb.value);
+            
+            if (commitShas.length === 0) {
+                alert('Please select at least one commit');
+                return;
+            }
+
+            if (!confirm(`Generate announcement from ${commitShas.length} commit(s)?`)) {
+                return;
+            }
+
+            // Get full commit objects
+            const selectedCommits = allCommits.filter(c => commitShas.includes(c.sha));
+
+            // Show loading state
+            const btn = document.getElementById('generate-batch-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Generating...';
+
+            try {
+                // Send to test announcement endpoint
+                const response = await fetch('/api/test-announcement', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        commits: selectedCommits,
+                        game_name: 'Your Game',  // TODO: Get from config
+                        steam_app_id: ''  // TODO: Get from config
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert('Error generating announcement: ' + result.error);
+                    return;
+                }
+
+                // Show success and redirect to test page
+                alert(`✅ Announcement generated successfully!\n\nTitle: ${result.title}\n\nRedirecting to preview...`);
+                window.location.href = '/test';
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         }
 
         function showError(message) {

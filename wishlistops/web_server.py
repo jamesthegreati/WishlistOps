@@ -88,6 +88,8 @@ class WishlistOpsWebServer:
         self.app.router.add_get('/api/announcements', self.handle_announcements)
         self.app.router.add_get('/api/commits', self.handle_api_commits)
         self.app.router.add_post('/api/test-announcement', self.handle_test_announcement)
+        self.app.router.add_post('/api/upload/logo', self.handle_upload_logo)
+        self.app.router.add_post('/api/upload/banner', self.handle_upload_banner)
         self.app.router.add_get('/api/steam/games', self.handle_steam_games)
         self.app.router.add_get('/api/steam/game/{app_id}', self.handle_steam_game_context)
         self.app.router.add_get('/api/export/announcement/{run_id}', self.handle_export_announcement)
@@ -271,16 +273,24 @@ class WishlistOpsWebServer:
         """Save configuration."""
         session = await get_session(request)
         
-        if not session.get('github_token'):
-            return web.json_response({"error": "Not authenticated"}, status=401)
-        
         try:
             data = await request.json()
             
-            # Merge with session credentials
-            data['google_ai_key'] = session.get('google_ai_key', '')
-            data['discord_webhook_url'] = session.get('discord_webhook', '')
-            data['github_token'] = session.get('github_token', '')
+            # Check if we have env vars - if not, require them in the request
+            if not os.getenv('GOOGLE_AI_KEY') and not data.get('google_ai_key'):
+                return web.json_response({
+                    "error": "GOOGLE_AI_KEY is required. Set it in environment or provide in config."
+                }, status=400)
+            
+            if not os.getenv('DISCORD_WEBHOOK_URL') and not data.get('discord_webhook_url'):
+                return web.json_response({
+                    "error": "DISCORD_WEBHOOK_URL is required. Set it in environment or provide in config."
+                }, status=400)
+            
+            # Merge with environment variables (env vars take precedence)
+            data['google_ai_key'] = os.getenv('GOOGLE_AI_KEY') or data.get('google_ai_key', '')
+            data['discord_webhook_url'] = os.getenv('DISCORD_WEBHOOK_URL') or data.get('discord_webhook_url', '')
+            data['github_token'] = os.getenv('GITHUB_TOKEN') or session.get('github_token', '') or data.get('github_token', '')
             
             # Save to file
             save_config(self.config_path, data)
@@ -756,6 +766,116 @@ class WishlistOpsWebServer:
         
         except Exception as e:
             logger.error(f"Failed to export banner: {e}", exc_info=True)
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def handle_upload_logo(self, request: web.Request) -> web.Response:
+        """Handle logo image upload."""
+        try:
+            reader = await request.multipart()
+            
+            # Read the file field
+            field = await reader.next()
+            if field.name != 'logo':
+                return web.json_response({"error": "Expected 'logo' field"}, status=400)
+            
+            # Read file data
+            filename = field.filename
+            if not filename:
+                return web.json_response({"error": "No filename provided"}, status=400)
+            
+            # Validate file type
+            if not filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                return web.json_response({
+                    "error": "Invalid file type. Please upload PNG or JPEG"
+                }, status=400)
+            
+            # Read file content
+            size = 0
+            content = bytearray()
+            while True:
+                chunk = await field.read_chunk()
+                if not chunk:
+                    break
+                size += len(chunk)
+                content.extend(chunk)
+                
+                # Limit file size to 5MB
+                if size > 5 * 1024 * 1024:
+                    return web.json_response({
+                        "error": "File too large. Maximum size is 5MB"
+                    }, status=400)
+            
+            # Save logo
+            logo_dir = self.config_path.parent / "assets"
+            logo_dir.mkdir(exist_ok=True)
+            logo_path = logo_dir / "logo.png"
+            logo_path.write_bytes(content)
+            
+            logger.info(f"Logo uploaded: {logo_path} ({size} bytes)")
+            
+            return web.json_response({
+                "success": True,
+                "path": str(logo_path),
+                "size": size
+            })
+        
+        except Exception as e:
+            logger.error(f"Failed to upload logo: {e}", exc_info=True)
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def handle_upload_banner(self, request: web.Request) -> web.Response:
+        """Handle banner template upload."""
+        try:
+            reader = await request.multipart()
+            
+            # Read the file field
+            field = await reader.next()
+            if field.name != 'banner':
+                return web.json_response({"error": "Expected 'banner' field"}, status=400)
+            
+            # Read file data
+            filename = field.filename
+            if not filename:
+                return web.json_response({"error": "No filename provided"}, status=400)
+            
+            # Validate file type
+            if not filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                return web.json_response({
+                    "error": "Invalid file type. Please upload PNG or JPEG"
+                }, status=400)
+            
+            # Read file content
+            size = 0
+            content = bytearray()
+            while True:
+                chunk = await field.read_chunk()
+                if not chunk:
+                    break
+                size += len(chunk)
+                content.extend(chunk)
+                
+                # Limit file size to 10MB
+                if size > 10 * 1024 * 1024:
+                    return web.json_response({
+                        "error": "File too large. Maximum size is 10MB"
+                    }, status=400)
+            
+            # Save banner template
+            banner_dir = self.config_path.parent / "assets"
+            banner_dir.mkdir(exist_ok=True)
+            banner_path = banner_dir / "banner_template.png"
+            banner_path.write_bytes(content)
+            
+            logger.info(f"Banner template uploaded: {banner_path} ({size} bytes)")
+            
+            return web.json_response({
+                "success": True,
+                "path": str(banner_path),
+                "size": size
+            })
+        
+        except Exception as e:
+            logger.error(f"Failed to upload banner: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
     
     # Helper methods

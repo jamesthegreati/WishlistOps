@@ -148,7 +148,7 @@
             <div class="progress-bar">
                 <div class="progress-fill" id="progress" style="width: 0%"></div>
             </div>
-            <p id="progress-text" style="color: var(--text-secondary); margin-top: 10px;">0 of 4 steps completed</p>
+            <p id="progress-text" style="color: var(--text-secondary); margin-top: 10px;">0 of 5 steps completed</p>
         </div>
 
         <!-- Step 1: GitHub -->
@@ -204,7 +204,7 @@
                 </ol>
             </div>
 
-            <img src="/static/images/discord-webhook.png" alt="Discord Webhook" class="guide-image" onerror="this.style.display='none'">
+            <img src="/static/images/discord-webhook.svg" alt="Discord Webhook" class="guide-image" onerror="this.style.display='none'">
 
             <div class="input-group">
                 <label for="discord-webhook">Discord Webhook URL</label>
@@ -234,7 +234,7 @@
                 </ol>
             </div>
 
-            <img src="/static/images/google-ai-key.png" alt="Google AI Key" class="guide-image" onerror="this.style.display='none'">
+            <img src="/static/images/google-ai-key.svg" alt="Google AI Key" class="guide-image" onerror="this.style.display='none'">
 
             <div class="input-group">
                 <label for="google-ai-key">Google AI API Key</label>
@@ -245,10 +245,42 @@
             <button class="auth-button" onclick="connectGoogleAI()">Connect Google AI</button>
         </div>
 
-        <!-- Step 4: Select Projects -->
-        <div class="step" id="step-projects">
+        <!-- Step 4: Upload Images -->
+        <div class="step" id="step-images">
             <div class="step-header">
                 <div class="step-number">4</div>
+                <div class="step-title">Upload Logo & Banner</div>
+                <span class="success-indicator" id="images-success">✓ Uploaded</span>
+            </div>
+            <p>Upload your game logo and optional banner template for announcements.</p>
+            
+            <div class="instructions">
+                <strong>📝 Requirements:</strong>
+                <ul>
+                    <li><strong>Logo:</strong> PNG or JPEG, transparent background recommended (used in announcements)</li>
+                    <li><strong>Banner Template:</strong> 1920x1080px recommended (optional, used as background)</li>
+                </ul>
+            </div>
+
+            <div class="input-group">
+                <label for="logo-upload">Game Logo (PNG recommended)</label>
+                <input type="file" id="logo-upload" accept="image/png,image/jpeg" onchange="uploadLogo(this)">
+                <small id="logo-status" style="color: var(--text-secondary);"></small>
+            </div>
+
+            <div class="input-group">
+                <label for="banner-upload">Banner Template (Optional)</label>
+                <input type="file" id="banner-upload" accept="image/png,image/jpeg" onchange="uploadBanner(this)">
+                <small id="banner-status" style="color: var(--text-secondary);"></small>
+            </div>
+
+            <button class="auth-button" onclick="completeImageUpload()">Continue to Projects</button>
+        </div>
+
+        <!-- Step 5: Select Projects -->
+        <div class="step" id="step-projects">
+            <div class="step-header">
+                <div class="step-number">5</div>
                 <div class="step-title">Select Your Game Projects</div>
                 <span class="success-indicator" id="projects-success">✓ Configured</span>
             </div>
@@ -376,9 +408,9 @@
         }
 
         function updateProgress() {
-            const progress = (completedSteps / 4) * 100;
+            const progress = (completedSteps / 5) * 100;
             document.getElementById('progress').style.width = progress + '%';
-            document.getElementById('progress-text').textContent = `${completedSteps} of 4 steps completed`;
+            document.getElementById('progress-text').textContent = `${completedSteps} of 5 steps completed`;
         }
 
         async function connectGitHub() {
@@ -512,6 +544,107 @@
                 
                 projectsList.appendChild(div);
             });
+        }
+
+        async function uploadLogo(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('logo-status');
+            status.textContent = 'Uploading...';
+            status.style.color = 'var(--primary-color)';
+
+            try {
+                const formData = new FormData();
+                formData.append('logo', file);
+
+                const response = await fetch('/api/upload/logo', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    status.textContent = '❌ ' + result.error;
+                    status.style.color = 'red';
+                    return;
+                }
+
+                status.textContent = `✅ Logo uploaded (${(result.size / 1024).toFixed(1)} KB)`;
+                status.style.color = 'var(--secondary-color)';
+
+                // Mark step as partially completed
+                localStorage.setItem('logo_uploaded', 'true');
+                checkImageUploadStatus();
+
+            } catch (error) {
+                status.textContent = '❌ Upload failed: ' + error.message;
+                status.style.color = 'red';
+            }
+        }
+
+        async function uploadBanner(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('banner-status');
+            status.textContent = 'Uploading...';
+            status.style.color = 'var(--primary-color)';
+
+            try {
+                const formData = new FormData();
+                formData.append('banner', file);
+
+                const response = await fetch('/api/upload/banner', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    status.textContent = '❌ ' + result.error;
+                    status.style.color = 'red';
+                    return;
+                }
+
+                status.textContent = `✅ Banner uploaded (${(result.size / 1024).toFixed(1)} KB)`;
+                status.style.color = 'var(--secondary-color)';
+
+                localStorage.setItem('banner_uploaded', 'true');
+                checkImageUploadStatus();
+
+            } catch (error) {
+                status.textContent = '❌ Upload failed: ' + error.message;
+                status.style.color = 'red';
+            }
+        }
+
+        function checkImageUploadStatus() {
+            const logoUploaded = localStorage.getItem('logo_uploaded');
+            const bannerUploaded = localStorage.getItem('banner_uploaded');
+
+            if (logoUploaded) {
+                document.getElementById('logo-status').textContent = '✅ Logo uploaded';
+                document.getElementById('logo-status').style.color = 'var(--secondary-color)';
+            }
+
+            if (bannerUploaded) {
+                document.getElementById('banner-status').textContent = '✅ Banner uploaded';
+                document.getElementById('banner-status').style.color = 'var(--secondary-color)';
+            }
+        }
+
+        function completeImageUpload() {
+            // Mark step as completed
+            document.getElementById('step-images').classList.add('completed');
+            document.getElementById('step-images').classList.remove('active');
+            document.getElementById('images-success').classList.add('show');
+            document.getElementById('step-projects').classList.add('active');
+
+            completedSteps++;
+            updateProgress();
         }
 
         async function saveConfiguration() {
