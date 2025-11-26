@@ -17,6 +17,13 @@ try:
 except ImportError:
     WEB_SERVER_AVAILABLE = False
 
+# Check if enhanced CLI is available
+try:
+    from .cli_v2 import WishlistOpsCLI, main as cli_main
+    CLI_V2_AVAILABLE = True
+except ImportError:
+    CLI_V2_AVAILABLE = False
+
 from .main import main as run_workflow
 
 
@@ -77,6 +84,12 @@ def main_cli():
     
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
+    # Interactive CLI command (default)
+    cli_parser = subparsers.add_parser(
+        "cli",
+        help="Launch interactive CLI (default)"
+    )
+    
     # Web server command
     web_parser = subparsers.add_parser(
         "web",
@@ -116,11 +129,41 @@ def main_cli():
         help="Enable debug logging"
     )
     
+    # Process images command
+    process_parser = subparsers.add_parser(
+        "process",
+        help="Process images for Steam"
+    )
+    process_parser.add_argument(
+        "images",
+        nargs="+",
+        type=Path,
+        help="Image files to process"
+    )
+    process_parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        help="Output directory (default: same as input)"
+    )
+    process_parser.add_argument(
+        "--preset",
+        choices=["fast", "balanced", "quality"],
+        default="balanced",
+        help="Quality preset (default: balanced)"
+    )
+    
     args = parser.parse_args()
     
-    # Default to web interface if no command specified
-    if not args.command:
-        launch_web_interface()
+    # Default to interactive CLI if no command specified
+    if not args.command or args.command == "cli":
+        if CLI_V2_AVAILABLE:
+            cli_main()
+        else:
+            print("❌ Enhanced CLI requires 'rich' library.")
+            print("Install with: pip install rich")
+            # Fall back to web interface
+            launch_web_interface()
         return
     
     if args.command == "web":
@@ -143,8 +186,52 @@ def main_cli():
             sys.argv.append("--verbose")
         
         run_workflow()
+    elif args.command == "process":
+        process_images_command(args)
     else:
         parser.print_help()
+        sys.exit(1)
+
+
+def process_images_command(args):
+    """Process images using the image processor."""
+    try:
+        from .image_processor import ImageProcessor, QualityPreset
+        
+        preset_map = {
+            "fast": QualityPreset.FAST,
+            "balanced": QualityPreset.BALANCED,
+            "quality": QualityPreset.QUALITY,
+        }
+        
+        processor = ImageProcessor(preset=preset_map[args.preset])
+        
+        for image_path in args.images:
+            if not image_path.exists():
+                print(f"❌ File not found: {image_path}")
+                continue
+            
+            print(f"Processing: {image_path.name}...")
+            
+            output_dir = args.output or image_path.parent
+            output_path = output_dir / f"{image_path.stem}_steam.png"
+            
+            result = processor.process_for_steam(image_path, output_path)
+            
+            print(f"  ✓ {result.original_size[0]}x{result.original_size[1]} → {result.final_size[0]}x{result.final_size[1]}")
+            print(f"  ✓ Quality score: {result.quality_score:.0f}%")
+            print(f"  ✓ Saved to: {output_path}")
+            
+            if result.warnings:
+                for warning in result.warnings:
+                    print(f"  ⚠️  {warning}")
+            
+            print()
+        
+        print("✅ Done!")
+        
+    except ImportError as e:
+        print(f"❌ Image processor not available: {e}")
         sys.exit(1)
 
 

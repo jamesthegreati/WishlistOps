@@ -298,6 +298,19 @@ visual:   Graphics, animations, or visual effects</code></pre>
                 <li><strong>Branding:</strong> WishlistOps auto-adds your logo</li>
             </ul>
 
+            <h3>Image Processing (How Banners Are Created)</h3>
+            <p>WishlistOps creates Steam banners from your screenshots, not AI-generated images:</p>
+            <ol>
+                <li><strong>You provide screenshots</strong> - Upload or link game screenshots from your repository</li>
+                <li><strong>Smart cropping</strong> - Automatically crops to Steam's 800×450 aspect ratio</li>
+                <li><strong>Content-aware focus</strong> - AI analyzes image to find the best crop region</li>
+                <li><strong>Logo overlay</strong> - Your game logo is added in the configured position</li>
+                <li><strong>Quality optimization</strong> - Output is optimized for Steam's requirements</li>
+            </ol>
+            <div class="tip">
+                <strong>💡 Why no AI image generation?</strong> Your actual game screenshots are more authentic and trusted by players than AI-generated art. Steam's audience values real gameplay footage.
+            </div>
+
             <h3>Commit Batching Strategy</h3>
             <p>Group related commits for better announcements:</p>
             <pre><code># Bad: Announcing every tiny commit
@@ -335,9 +348,9 @@ git tag v1.1.0  # Announces all changes together</code></pre>
 
             <h4>Branding</h4>
             <pre><code>"branding": {
-  "art_style": "pixel art fantasy",  // For AI image generation
+  "art_style": "pixel art fantasy",  // For AI context in text generation
   "logo_path": "assets/logo.png",    // Your game logo
-  "logo_position": "top-right",      // Where to place logo
+  "logo_position": "top-right",      // Where to place logo on banners
   "logo_size_percent": 25            // Logo size (10-50%)
 }</code></pre>
 

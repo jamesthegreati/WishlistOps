@@ -81,6 +81,7 @@ class WishlistOpsWebServer:
         # API endpoints
         self.app.router.add_get('/api/status', self.handle_status)
         self.app.router.add_get('/api/health', self.handle_health)
+        self.app.router.add_get('/health', self.handle_health)  # Alias for frontend compatibility
         self.app.router.add_get('/api/version', self.handle_version)
         self.app.router.add_get('/api/projects', self.handle_projects)
         self.app.router.add_get('/api/config', self.handle_get_config)
@@ -107,14 +108,7 @@ class WishlistOpsWebServer:
     
     async def handle_index(self, request: web.Request) -> web.Response:
         """Serve main dashboard page."""
-        session = await get_session(request)
-        
-        # Check if user is authenticated
-        if not session.get('github_token'):
-            return web.FileResponse(
-                Path(__file__).parent.parent / "dashboard" / "welcome.html"
-            )
-        
+        # Always serve the main dashboard - no auth required for local use
         return web.FileResponse(
             Path(__file__).parent.parent / "dashboard" / "index.html"
         )
