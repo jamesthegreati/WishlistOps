@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wishlistops"
 version = "1.0.0"
-description = "Automated Steam marketing for indie game developers"
-readme = "PYPI_README.md"
+description = "AI co-pilot for Steam marketing - drafts announcements from Git commits"
+readme = "docs/PYPI_README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
@@ -18,9 +18,10 @@ keywords = [
     "marketing",
     "automation",
     "indie",
-    "ai",
+    "ai-assistant",
     "github-actions",
     "discord",
+    "announcement-drafting",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

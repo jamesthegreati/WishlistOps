@@ -1,6 +1,8 @@
 # 🎮 WishlistOps - Quick Reference Card
 
-**Save this for easy access to common commands and workflows**
+**AI Co-Pilot for Steam Marketing**
+
+> **Remember:** We draft TEXT with AI + format YOUR screenshots. No AI image generation. Manual Steam post required (~30 sec).
 
 ---
 
@@ -8,6 +10,9 @@
 
 ```bash
 pip install wishlistops
+
+# Check version
+wishlistops --version
 ```
 
 ---

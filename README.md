@@ -1,12 +1,14 @@
 # 🎮 WishlistOps
 
-**Automated Steam Marketing for Indie Game Developers**
+**AI Co-Pilot for Steam Marketing**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Production Ready](https://img.shields.io/badge/status-production--ready-brightgreen.svg)](https://github.com/jamesthegreati/WishlistOps)
 
-Transform your Git commits into Steam announcements automatically. Save 4+ hours per week on marketing and focus on building your game.
+Transform your Git commits into Steam announcements with AI assistance. WishlistOps drafts announcements and prepares your screenshots - you just review and post.
+
+> **Important:** This is an AI co-pilot, not full automation. Steam does not provide a public API for posting announcements, so you'll need to manually post to Steamworks after review (~30 seconds).
 
 ---
 
@@ -16,13 +18,20 @@ Transform your Git commits into Steam announcements automatically. Save 4+ hours
 - **Web Interface** - Beautiful dashboard at `http://localhost:8080` for configuration and monitoring
 - **Interactive CLI** - Full-featured terminal UI with `wishlistops-cli` (optional)
 - **Multi-commit Selection** - Select and batch process multiple commits at once
-- **Image Upload** - Upload logo and banner images directly from the dashboard
+- **Image Upload** - Upload YOUR OWN screenshots and logos directly from the dashboard
 
-### 🤖 AI-Powered Automation
-- **Smart Generation** - Google Gemini writes Steam-ready announcements from your commits
-- **Game Context** - AI understands your game's genre, style, and previous announcements
-- **Banner Creation** - Auto-crop screenshots + logo overlay for Steam's 1920x1080 format
+### 🤖 AI-Powered Content (Not Images!)
+- **Smart Announcement Writing** - Google Gemini writes Steam-ready announcements from your commits
+- **Game Context Awareness** - AI understands your game's genre, style, and previous announcements
 - **Quality Filtering** - Removes generic AI language and keeps your authentic voice
+- **Anti-Slop Engine** - Built-in filter prevents corporate jargon ("delve", "robust", etc.)
+
+### 🎨 Image Processing (Your Screenshots Only)
+- **User-Provided Images** - Upload YOUR OWN game screenshots and logos
+- **Smart Enhancement** - Auto-crop, resize, and optimize for Steam's 1920x1080 format
+- **Logo Compositing** - Overlay your game logo on screenshots
+- **Optional AI Upscaling** - Install `wishlistops[image-enhancement]` for RealESRGAN support (~3GB)
+- **No Image Generation** - We NEVER create images with AI, only enhance what you provide
 
 ### 🔒 Safe & Private
 - **Discord Approval** - Human-in-the-loop workflow with download links
@@ -140,10 +149,10 @@ git push origin v1.2.0
 
 ## 📚 Documentation
 
-- **[User Guide](USER_GUIDE.md)** - Complete walkthrough with examples
+- **[User Guide](docs/USER_GUIDE.md)** - Complete walkthrough with examples
 - **[Quick Start](docs/QUICK_START.md)** - Get started in 5 minutes
-- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Deploy to GitHub Actions, Docker, or cloud
-- **[Technical Architecture](docs/architecture/)** - System design and diagrams
+- **[Launch Guide](docs/LAUNCH_GUIDE.md)** - Deploy to GitHub Actions or cloud
+- **[Steam API Notes](docs/STEAM_API_NOTES.md)** - Technical limitations and workarounds
 
 ---
 

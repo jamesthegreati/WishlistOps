@@ -1,14 +1,18 @@
 """
 Advanced Image Processing for WishlistOps.
 
-High-quality, lightweight image processing pipeline for Steam banners.
+Processes USER-PROVIDED screenshots and game images for Steam announcements.
+This module does NOT generate images with AI - it only enhances and formats
+images provided by the user.
+
 Features:
 - Smart content-aware cropping with saliency detection
-- High-quality upscaling without heavy dependencies
+- High-quality upscaling (optional ML enhancement available)
 - Multiple quality presets
 - Steam-optimized output
 
-Dependencies: Only Pillow required (numpy optional for advanced features)
+Dependencies: Only Pillow required (lightweight ~10MB)
+Optional: Install wishlistops[image-enhancement] for AI upscaling (~3GB)
 """
 
 import logging

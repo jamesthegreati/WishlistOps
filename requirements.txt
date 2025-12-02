@@ -1,125 +1,72 @@
 # =============================================================================
-# WishlistOps Python Dependencies
+# WishlistOps Core Dependencies (Lightweight)
 # =============================================================================
 # 
-# Core dependencies for Steam marketing automation platform
-# Compatible with Python 3.11+
+# Lean core dependencies for Steam marketing automation
+# Total install size: ~100MB (vs 3GB+ with ML dependencies)
 #
-# Install: pip install -r requirements.txt
+# For AI image enhancement: pip install wishlistops[image-enhancement]
+# For development tools: pip install -r requirements-dev.txt
 # =============================================================================
 
 # -------------------------------------------------------------------------
 # HTTP & API Clients
 # -------------------------------------------------------------------------
-requests>=2.31.0          # Synchronous HTTP requests (Steam API)
-aiohttp>=3.9.0            # Async HTTP requests (parallel API calls)
-httpx>=0.25.0             # Modern HTTP client with HTTP/2 support
+requests>=2.31.0
+aiohttp>=3.9.0
+httpx>=0.25.0
 
 # -------------------------------------------------------------------------
 # Data Validation & Models
 # -------------------------------------------------------------------------
-pydantic>=2.5.0           # Type-safe data validation and settings
-pydantic-settings>=2.1.0  # Environment-based configuration
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
 
 # -------------------------------------------------------------------------
 # Git Operations
 # -------------------------------------------------------------------------
-GitPython>=3.1.40         # Git repository interactions
+GitPython>=3.1.40
 
 # -------------------------------------------------------------------------
-# Image Processing
+# Image Processing (Pillow only - no ML dependencies)
 # -------------------------------------------------------------------------
-Pillow>=10.0.0            # Image manipulation and compositing
-pillow-heif>=0.13.0       # HEIF/HEIC support (optional)
+Pillow>=10.0.0
 
 # -------------------------------------------------------------------------
 # Configuration & Environment
 # -------------------------------------------------------------------------
-python-dotenv>=1.0.0      # Load environment variables from .env
-tomli>=2.0.1              # TOML parser (Python <3.11 compatibility)
-pyyaml>=6.0.1             # YAML parser for configs
+python-dotenv>=1.0.0
+tomli>=2.0.1; python_version<'3.11'
+pyyaml>=6.0.1
 
 # -------------------------------------------------------------------------
-# AI & Machine Learning (Google Gemini)
+# AI Content Generation (Google Gemini - lightweight)
 # -------------------------------------------------------------------------
-google-generativeai>=0.3.0  # Google Gemini API client
+google-generativeai>=0.3.0
 
 # -------------------------------------------------------------------------
 # Discord Integration
 # -------------------------------------------------------------------------
-discord-webhook>=1.3.0    # Discord webhook notifications
-discord.py>=2.3.0         # Full Discord bot (for approval buttons)
+discord-webhook>=1.3.0
 
 # -------------------------------------------------------------------------
 # Utilities
 # -------------------------------------------------------------------------
-python-dateutil>=2.8.2    # Date/time parsing and manipulation
-pytz>=2023.3              # Timezone support
-tenacity>=8.2.3           # Retry logic with exponential backoff
-ratelimit>=2.2.1          # Rate limiting decorators
-filelock>=3.13.0          # Thread-safe file locking for state management
+python-dateutil>=2.8.2
+pytz>=2023.3
+tenacity>=8.2.3
+ratelimit>=2.2.1
+filelock>=3.13.0
 
 # -------------------------------------------------------------------------
-# Testing & Quality (Development only)
+# Logging & Performance
 # -------------------------------------------------------------------------
-pytest>=7.4.0             # Testing framework
-pytest-asyncio>=0.21.0    # Async test support
-pytest-cov>=4.1.0         # Code coverage reports
-pytest-mock>=3.12.0       # Mocking utilities
-
-# Type checking
-mypy>=1.7.0               # Static type checker
-types-requests>=2.31.0    # Type stubs for requests
-types-PyYAML>=6.0.12      # Type stubs for PyYAML
-
-# Linting & Formatting
-pylint>=3.0.0             # Code linter
-black>=23.11.0            # Code formatter
-isort>=5.12.0             # Import sorter
-flake8>=6.1.0             # Style guide enforcement
-
-# -------------------------------------------------------------------------
-# Documentation (Optional)
-# -------------------------------------------------------------------------
-mkdocs>=1.5.0             # Documentation generator
-mkdocs-material>=9.4.0    # Material theme for MkDocs
-
-# -------------------------------------------------------------------------
-# Security
-# -------------------------------------------------------------------------
-safety>=2.3.0             # Dependency vulnerability scanner
-bandit>=1.7.5             # Security issue scanner
-
-# -------------------------------------------------------------------------
-# Logging & Monitoring
-# -------------------------------------------------------------------------
-structlog>=23.2.0         # Structured logging
-python-json-logger>=2.0.7 # JSON log formatting
-
-# -------------------------------------------------------------------------
-# Performance
-# -------------------------------------------------------------------------
-orjson>=3.9.0             # Fast JSON serialization
-ujson>=5.8.0              # Ultra-fast JSON parser (fallback)
+structlog>=23.2.0
+python-json-logger>=2.0.7
+orjson>=3.9.0
 
 # -------------------------------------------------------------------------
 # Web Dashboard
 # -------------------------------------------------------------------------
-aiohttp>=3.9.0            # Async web server
-aiohttp-session>=2.12.0   # Session management for web dashboard
-cryptography>=41.0.0      # Encryption for session cookies
-
-# -------------------------------------------------------------------------
-# Steam API Specific
-# -------------------------------------------------------------------------
-# Note: No official Steam Web API Python library exists
-# We use requests/aiohttp directly with custom wrappers
-
-# -------------------------------------------------------------------------
-# Version Constraints
-# -------------------------------------------------------------------------
-# Python >=3.11 required for:
-# - tomllib (built-in TOML parser)
-# - Improved typing features
-# - Better async/await performance
-# - ExceptionGroup support
+aiohttp-session>=2.12.0
+cryptography>=41.0.0

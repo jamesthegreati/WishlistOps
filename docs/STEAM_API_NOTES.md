@@ -22,19 +22,29 @@ After extensive research of Steam's Partner documentation, we found:
 
 ### 1. Steamworks Partner Website (Manual) ⭐ CURRENT METHOD
 
-**URL**: `https://partner.steamgames.com/apps/landing/{APP_ID}`
+**Direct Announcement Creation URL**: 
+```
+https://partner.steamgames.com/apps/community/{APP_ID}/announcements/create
+```
+
+**Alternative URLs**:
+- App Landing: `https://partner.steamgames.com/apps/landing/{APP_ID}`
+- Events Dashboard: `https://partner.steamgames.com/apps/community/{APP_ID}/events`
 
 **Process**:
 1. Log in to Steamworks Partner site
-2. Navigate to your app
-3. Go to "Community" → "Events & Announcements"
-4. Create announcement manually
-5. Publish or save as "Hidden" for later
+2. Click "Open Steamworks" button in Discord approval message
+3. Link takes you DIRECTLY to announcement creation page
+4. Copy-paste pre-generated title and content
+5. Upload banner image (provided via Discord)
+6. Publish or save as "Hidden" for later
 
 **WishlistOps Implementation**:
-- We generate the announcement content with AI
-- Send to Discord for approval
-- Provide direct link to Steamworks
+- We generate the announcement content with AI (drafting only)
+- Process user-provided screenshots for Steam format
+- Send to Discord for approval with direct Steamworks link
+- Provide "Copy to Clipboard" buttons for easy paste
+- Deep link directly to announcement creation page
 - Developer manually posts (takes ~30 seconds)
 
 ### 2. Steamworks SDK (C++ Integration)

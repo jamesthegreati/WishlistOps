@@ -1,6 +1,21 @@
 # WishlistOps User Guide
 
-> **The easiest way to automate Steam announcements for your indie game**
+> **AI Co-Pilot for Steam Marketing - Drafts announcements from your Git commits**
+
+## Important Notes
+
+### What WishlistOps Does
+- **AI Drafts Text**: Google Gemini writes Steam announcements from your Git commits
+- **Processes YOUR Screenshots**: Crops, resizes, and optimizes your game screenshots for Steam
+- **Discord Approval**: Human-in-the-loop workflow with download links
+- **100% Local**: Runs on your machine, your data stays private
+
+### What WishlistOps Does NOT Do
+- ❌ **No AI Image Generation**: We NEVER create images with AI - all images must be provided by you
+- ❌ **No Automatic Steam Posting**: Steam has no public posting API - you copy-paste the final result (~30 seconds)
+- ❌ **No Cloud Storage**: Your data never leaves your machine
+
+> **Image Clarification**: When we say "banner images", we mean YOUR screenshots that we've resized and formatted for Steam (800x450). We only enhance what you provide - cropping, resizing, adding your logo overlay. No AI-generated imagery.
 
 ## Table of Contents
 

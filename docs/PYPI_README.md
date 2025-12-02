@@ -1,23 +1,30 @@
 # 🎮 WishlistOps
 
-**Automated Steam Marketing for Indie Developers**
+**AI Co-Pilot for Steam Marketing**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://badge.fury.io/py/wishlistops.svg)](https://badge.fury.io/py/wishlistops)
 
-Transform your Git commits into Steam announcements automatically. Save 4+ hours per week on marketing and focus on building your game.
+Transform your Git commits into Steam announcements with AI assistance. WishlistOps drafts professional announcements and prepares your screenshots - you just review and post.
+
+**Important:** This is an AI co-pilot, not full automation. Steam does not provide a public API for posting announcements, so you'll need to manually post to Steamworks after review.
 
 ---
 
 ## ✨ Features
 
-- 🤖 **AI-Powered Announcements** - Google Gemini writes Steam announcements from your commits
-- 🎨 **Smart Banner Generation** - Auto-crop screenshots + logo overlay for Steam's format
-- ✅ **Human Approval** - Review in Discord before posting (no surprises!)
+- 🤖 **AI Announcement Drafting** - Google Gemini writes Steam announcements from your commits
+- 🎨 **Screenshot Enhancement** - Crop, resize, and optimize YOUR screenshots for Steam
+- ✅ **Discord Review Workflow** - Approve drafts before posting (human-in-the-loop)
 - 📊 **Beautiful Dashboard** - Web UI for setup, monitoring, and multi-project management
 - 🔒 **100% Private** - Runs locally, your data never touches our servers
 - 💰 **$0 Infrastructure** - Free GitHub Actions + free Google AI tier
+
+**What We DON'T Do:**
+- ❌ We don't automatically post to Steam (API limitation)
+- ❌ We don't generate images with AI (you provide screenshots)
+- ❌ We don't create fake content (only enhance what you provide)
 
 ---
 
@@ -93,23 +100,25 @@ git push origin v1.2.0
 └──────┬──────────┘
        │
        ▼
-┌─────────────────┐
-│  AI Generates   │  ← Google Gemini reads commits
-│  Announcement   │
-└──────┬──────────┘
+┌─────────────────────────────────────────┐
+│  AI Drafts Announcement                 │  ← Google Gemini reads commits
+│  + Prepares YOUR Screenshots for Steam  │  ← We only resize/crop, no AI images
+└──────┬──────────────────────────────────┘
        │
        ▼
 ┌─────────────────┐
 │  Discord        │  ← You approve or edit
-│  Notification   │
+│  Notification   │  ← Download .txt + banner
 └──────┬──────────┘
        │
        ▼
-┌─────────────────┐
-│  Posted to      │  ← Auto-posted after approval
-│  Steam!         │
-└─────────────────┘
+┌─────────────────────────────────────────┐
+│  Copy to Steamworks                     │  ← Click direct link, paste content
+│  (~30 seconds)                          │  ← Steam has no posting API
+└─────────────────────────────────────────┘
 ```
+
+> **Note:** Steam does not provide a public API for posting announcements. We automate 99% of the work (drafting, formatting, image prep) - you just copy-paste the final result.
 
 ---
 
@@ -203,10 +212,14 @@ Monitor announcements for multiple games from one dashboard. Perfect for:
 - Publishers overseeing indie games
 
 ### Smart Screenshot Handling
+
+We process YOUR screenshots - we NEVER generate images with AI:
+- **Your Images Only** - Upload your own game screenshots and logos
 - Auto-crops to Steam's 800x450 aspect ratio
 - Detects screenshots in commits (explicit or implicit)
 - Falls back to recent screenshots in `/screenshots/` folder
 - Supports PNG, JPG, JPEG, WEBP
+- Optional AI upscaling with `wishlistops[image-enhancement]` (~3GB)
 
 ### Anti-Slop Quality Filter
 Automatically detects and fixes:

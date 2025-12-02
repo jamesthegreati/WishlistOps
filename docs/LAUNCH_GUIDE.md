@@ -2,6 +2,16 @@
 
 **Complete guide to shipping WishlistOps to PyPI and launching to users**
 
+## Important Clarifications for Marketing
+
+Before launch, ensure all marketing materials clearly state:
+
+1. **AI Co-Pilot, Not Full Automation**: Steam has no public posting API. We draft announcements and prepare images - user does final copy-paste (~30 seconds).
+
+2. **No AI Image Generation**: We ONLY process user-provided screenshots (crop, resize, logo overlay). All images come from the user.
+
+3. **Text Generation Only**: Google Gemini drafts announcement text from Git commits. This is the only AI generation involved.
+
 ---
 
 ## 📦 Pre-Launch Checklist

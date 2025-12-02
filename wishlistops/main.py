@@ -9,12 +9,15 @@ Production fixes: See 05_WishlistOps_Revised_Architecture.md
 
 Workflow Steps:
 1. Parse Git commits since last run
-2. Generate announcement text using AI
+2. Generate announcement text using AI (drafting only - not creating images)
 3. Filter content for quality (anti-slop)
-4. Generate banner image
-5. Composite game logo
+4. Process user-provided screenshots for Steam banners
+5. Composite game logo onto banner
 6. Send to Discord for approval
 7. Update state for next run
+
+Note: This tool does NOT generate images with AI. All images are provided
+by the user (screenshots, logos, etc.). We only enhance and format them.
 
 Error Handling:
 - API failures retry with exponential backoff
@@ -49,6 +52,28 @@ logging.basicConfig(
     datefmt='%Y-%m-%dT%H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+
+def check_optional_dependencies():
+    """
+    Check for optional ML dependencies and warn user if missing.
+    
+    This provides a helpful message about installing image-enhancement
+    extras if user wants AI upscaling features.
+    """
+    try:
+        import torch
+        import realesrgan
+        logger.info("AI image enhancement available (RealESRGAN)")
+        return True
+    except ImportError:
+        logger.warning(
+            "AI image enhancement not available. "
+            "Using standard quality Pillow-based upscaling. "
+            "For high-quality upscaling, install with: "
+            "pip install wishlistops[image-enhancement]"
+        )
+        return False
 
 
 class WorkflowError(Exception):
@@ -609,8 +634,15 @@ Return a JSON object with "title" and "body" keys.
 def main() -> None:
     """Main entry point for CLI."""
     parser = argparse.ArgumentParser(
-        description="WishlistOps - Automate Steam marketing for indie games",
-        epilog="See documentation at: https://github.com/your-org/wishlistops"
+        description="WishlistOps - AI Co-Pilot for Steam Marketing",
+        epilog="See documentation at: https://github.com/jamesthegreati/WishlistOps"
+    )
+    
+    # Add version argument
+    parser.add_argument(
+        "--version", "-v",
+        action="version",
+        version="%(prog)s 1.0.0"
     )
     
     subparsers = parser.add_subparsers(dest='command', help='Commands')
