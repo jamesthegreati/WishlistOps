@@ -247,8 +247,11 @@ async def test_send_approval_request_with_local_banner(tmp_path):
         mock_send.assert_awaited_once()
         embed = mock_send.await_args.args[0]
         assert embed["image"]["url"].startswith("attachment://")
-        assert mock_send.await_args.kwargs["file_bytes"] == b"image-bytes"
-        assert mock_send.await_args.kwargs["filename"] == "boss.png"
+        files = mock_send.await_args.kwargs.get("files", [])
+        image_file = next((f for f in files if f.get("type") == "image"), None)
+        assert image_file is not None
+        assert image_file["bytes"] == b"image-bytes"
+        assert image_file["name"] == "boss.png"
 
 
 @pytest.mark.asyncio
@@ -277,7 +280,7 @@ async def test_send_webhook_success():
 
 @pytest.mark.asyncio
 async def test_send_webhook_with_file_payload():
-    """_send_webhook should send multipart form when file bytes provided."""
+    """_send_webhook should send multipart form when files are provided."""
     notifier = DiscordNotifier("https://discord.com/api/webhooks/123/abc")
 
     mock_response = MagicMock()
@@ -292,7 +295,8 @@ async def test_send_webhook_with_file_payload():
 
     with patch('aiohttp.ClientSession', return_value=mock_session):
         embed = {"title": "Test"}
-        await notifier._send_webhook(embed, file_bytes=b"123", filename="banner.png")
+        files = [{"name": "banner.png", "bytes": b"123", "type": "image"}]
+        await notifier._send_webhook(embed, files=files)
 
         kwargs = mock_session.post.call_args.kwargs
         assert "data" in kwargs

@@ -119,11 +119,11 @@ async def test_workflow_skips_on_rate_limit(mock_config_file: Path) -> None:
     
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
-    # Mock state to show recent post
+    # Mock state to show recent post (return a datetime, as StateManager does)
     with patch.object(
         orch.state, 
         'get_last_post_date', 
-        return_value=datetime.now().isoformat()
+        return_value=datetime.now()
     ):
         result = await orch.run()
         
@@ -137,7 +137,7 @@ async def test_workflow_success_flow(mock_config_file: Path) -> None:
     from datetime import datetime
     from wishlistops.models import CommitType
     
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
+    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=False)
     
     # Create mock commits
     mock_commits = [
@@ -181,7 +181,7 @@ async def test_workflow_handles_ai_failure(mock_config_file: Path) -> None:
     from datetime import datetime
     from wishlistops.models import CommitType
     
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
+    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=False)
     
     mock_commits = [
         Commit(
@@ -218,7 +218,7 @@ async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> 
     from datetime import datetime
     from wishlistops.models import CommitType
     
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
+    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=False)
     
     mock_commits = [
         Commit(
@@ -262,7 +262,6 @@ async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> 
         assert generate_calls == 2
         assert result.status == WorkflowStatus.SUCCESS
 
-
 def test_build_ai_context(mock_config_file: Path) -> None:
     """Test AI context building."""
     from datetime import datetime
@@ -302,7 +301,7 @@ def test_should_run_with_old_post(mock_config_file: Path) -> None:
     
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
-    old_date = (datetime.now() - timedelta(days=10)).isoformat()
+    old_date = datetime.now() - timedelta(days=10)
     
     with patch.object(orch.state, 'get_last_post_date', return_value=old_date):
         assert orch._should_run() is True
@@ -314,7 +313,7 @@ def test_should_run_with_recent_post(mock_config_file: Path) -> None:
     
     orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
     
-    recent_date = (datetime.now() - timedelta(days=1)).isoformat()
+    recent_date = datetime.now() - timedelta(days=1)
     
     with patch.object(orch.state, 'get_last_post_date', return_value=recent_date):
         assert orch._should_run() is False
