@@ -336,7 +336,7 @@ class WishlistOpsOrchestrator:
             game_context = await self._fetch_game_context()
             
             # Build context from config and commits
-            context = await self._build_ai_context(commits, game_context)
+            context = self._build_ai_context(commits, game_context)
             
             logger.debug("AI context built", extra={"context_length": len(context)})
             
@@ -478,6 +478,42 @@ Personality: {self.config.voice.personality}
         return candidates[0]
 
     
+    async def _create_banner(self, draft: AnnouncementDraft, commits: list[Commit]) -> AnnouncementDraft:
+        """
+        Create a banner image by compositing the game logo onto a screenshot.
+        
+        Finds the most recent screenshot from the repo, processes it to Steam
+        dimensions, overlays the game logo, and saves it to disk.  If no
+        screenshot is found or processing fails the draft is returned unchanged.
+        
+        Args:
+            draft: Current announcement draft
+            commits: Commits being announced (unused; reserved for future use)
+            
+        Returns:
+            Draft updated with banner_path, or original draft if no image available
+        """
+        logger.info("Creating banner image")
+        
+        try:
+            screenshot_path = self._find_recent_screenshot()
+            if not screenshot_path:
+                logger.warning("No screenshot found; skipping banner creation")
+                return draft
+            
+            image_data = screenshot_path.read_bytes()
+            banner_bytes = self.compositor.composite_logo(image_data)
+            banner_path = self._save_banner(banner_bytes)
+            
+            draft.banner_path = banner_path
+            logger.info("Banner created", extra={"path": banner_path})
+            return draft
+            
+        except Exception as e:
+            logger.error("Banner creation failed: %s", e, exc_info=True)
+            logger.warning("Continuing without banner")
+            return draft
+
     async def _send_for_approval(self, draft: AnnouncementDraft) -> None:
         """
         Send draft to Discord for human approval.
@@ -529,7 +565,7 @@ Personality: {self.config.voice.personality}
             logger.warning(f"Failed to fetch game context: {e}")
             return None
     
-    async def _build_ai_context(self, commits: list[Commit], game_context: Optional[Dict[str, Any]] = None) -> str:
+    def _build_ai_context(self, commits: list[Commit], game_context: Optional[Dict[str, Any]] = None) -> str:
         """
         Build AI prompt context from commits, config, and game data.
         
