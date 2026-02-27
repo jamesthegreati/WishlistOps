@@ -1,4 +1,0 @@
-[console_scripts]
-wishlistops = wishlistops.main:main
-wishlistops-cli = wishlistops.cli:main
-wishlistops-web = wishlistops.__main__:launch_web_interface

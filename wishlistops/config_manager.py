@@ -42,6 +42,17 @@ class ConfigManager:
             ConfigurationError: If config is invalid or incomplete
             FileNotFoundError: If config file doesn't exist
         """
+        # Load .env (if present) so users don't have to export env vars manually.
+        # This is best-effort; missing python-dotenv should not break runtime.
+        try:
+            from dotenv import load_dotenv  # type: ignore
+
+            repo_root = config_path.resolve().parents[1]
+            load_dotenv(repo_root / ".env", override=False)
+            load_dotenv(config_path.parent / ".env", override=False)
+        except Exception:
+            pass
+
         # Check file exists
         if not config_path.exists():
             raise FileNotFoundError(
@@ -97,9 +108,8 @@ class ConfigManager:
     def _validate_secrets(config: Config) -> None:
         """Validate required environment variables are set."""
         missing = []
-        
-        if not config.steam_api_key:
-            missing.append("STEAM_API_KEY")
+
+        # Steam API key is optional (used only for extra context fetching).
         if not config.google_ai_key:
             missing.append("GOOGLE_AI_KEY")
         if config.automation.require_manual_approval and not config.discord_webhook_url:

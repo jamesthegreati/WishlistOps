@@ -77,6 +77,12 @@ def test_ai_client_alias(mock_api_key, ai_config):
     assert isinstance(client, GeminiClient)
 
 
+def test_normalize_model_name(ai_config, mock_api_key):
+    client = GeminiClient(mock_api_key, ai_config)
+    assert client._normalize_model_name("gemini-1.5-pro") == "gemini-1.5-pro"
+    assert client._normalize_model_name("models/gemini-1.5-pro") == "gemini-1.5-pro"
+
+
 # =============================================================================
 # Context Manager Tests
 # =============================================================================
@@ -152,6 +158,100 @@ async def test_generate_text_success(mock_api_key, ai_config):
             assert "new weapon" in result.body
             assert result.metadata['model'] == "gemini-1.5-pro"
             assert result.metadata['finish_reason'] == "STOP"
+
+
+@pytest.mark.asyncio
+async def test_list_generate_content_models_filters_supported_methods(mock_api_key, ai_config):
+    list_models_payload = {
+        "models": [
+            {
+                "name": "models/gemini-1.5-pro",
+                "displayName": "Gemini 1.5 Pro",
+                "supportedGenerationMethods": ["generateContent"],
+            },
+            {
+                "name": "models/text-embedding-004",
+                "displayName": "Embedding",
+                "supportedGenerationMethods": ["embedContent"],
+            },
+        ]
+    }
+
+    async with GeminiClient(mock_api_key, ai_config) as client:
+        with patch.object(client.session, "get") as mock_get:
+            mock_response = AsyncMock()
+            mock_response.status = 200
+            mock_response.json = AsyncMock(return_value=list_models_payload)
+            mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+            mock_response.__aexit__ = AsyncMock(return_value=None)
+            mock_get.return_value = mock_response
+
+            models = await client.list_generate_content_models()
+            assert len(models) == 1
+            assert models[0]["name"] == "gemini-1.5-pro"
+
+
+@pytest.mark.asyncio
+async def test_generate_text_falls_back_on_model_404(mock_api_key, ai_config):
+    """If the configured model returns 404 (unsupported), client should ListModels and retry."""
+
+    ai_config.model_text = "gemini-1.5-pro"  # configured to something that will error
+
+    # First generateContent call returns 404 with ListModels hint.
+    error_body = (
+        '{"error": {"code": 404, "message": "models/gemini-1.5-pro is not found for API version v1beta, '
+        'or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", '
+        '"status": "NOT_FOUND"}}'
+    )
+
+    list_models_payload = {
+        "models": [
+            {
+                "name": "models/gemini-1.5-flash",
+                "displayName": "Gemini 1.5 Flash",
+                "supportedGenerationMethods": ["generateContent"],
+            }
+        ]
+    }
+
+    ok_payload = {
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "Title\n\nBody"}]},
+                "finishReason": "STOP",
+            }
+        ]
+    }
+
+    async with GeminiClient(mock_api_key, ai_config) as client:
+        with patch.object(client.session, "post") as mock_post, patch.object(client.session, "get") as mock_get:
+            # First post -> 404
+            resp_404 = AsyncMock()
+            resp_404.status = 404
+            resp_404.text = AsyncMock(return_value=error_body)
+            resp_404.__aenter__ = AsyncMock(return_value=resp_404)
+            resp_404.__aexit__ = AsyncMock(return_value=None)
+
+            # Second post -> 200
+            resp_ok = AsyncMock()
+            resp_ok.status = 200
+            resp_ok.json = AsyncMock(return_value=ok_payload)
+            resp_ok.__aenter__ = AsyncMock(return_value=resp_ok)
+            resp_ok.__aexit__ = AsyncMock(return_value=None)
+
+            mock_post.side_effect = [resp_404, resp_ok]
+
+            # ListModels -> 200
+            resp_models = AsyncMock()
+            resp_models.status = 200
+            resp_models.json = AsyncMock(return_value=list_models_payload)
+            resp_models.__aenter__ = AsyncMock(return_value=resp_models)
+            resp_models.__aexit__ = AsyncMock(return_value=None)
+            mock_get.return_value = resp_models
+
+            result = await client.generate_text("prompt")
+            assert result.title
+            assert client.config.model_text == "gemini-1.5-flash"
 
 
 @pytest.mark.asyncio

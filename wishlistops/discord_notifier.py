@@ -124,6 +124,8 @@ class DiscordNotifier:
         
         # Build attachments list
         files: List[Dict[str, Any]] = []
+        legacy_file_bytes: Optional[bytes] = None
+        legacy_filename: Optional[str] = None
         
         # Add banner image if available
         if banner_path:
@@ -136,6 +138,8 @@ class DiscordNotifier:
                         "bytes": banner_bytes,
                         "type": "image"
                     })
+                    legacy_file_bytes = banner_bytes
+                    legacy_filename = path.name
                     logger.info("Attaching banner image for download", extra={"path": str(path)})
                 except OSError as exc:
                     logger.warning("Failed to read banner for upload", extra={"path": str(path), "error": str(exc)})
@@ -191,7 +195,9 @@ class DiscordNotifier:
             await self._send_webhook(
                 embed,
                 components,
-                files=files
+                files=files,
+                file_bytes=legacy_file_bytes,
+                filename=legacy_filename,
             )
             logger.info("Approval request sent successfully with downloadable files")
             return True
@@ -224,23 +230,28 @@ class DiscordNotifier:
         Returns:
             Discord embed payload
         """
-        # Truncate body for preview
-        body_preview = body[:500] + "..." if len(body) > 500 else body
+        # Truncate body for preview (keep embed readable)
+        body_preview = body[:700] + "..." if len(body) > 700 else body
         
         # Build title
-        embed_title = f"🎮 New Announcement Ready: {title[:200]}"
+        embed_title = f"🎮 Steam Announcement Draft: {title[:200]}"
         
         # Build description
         description = (
             f"**Game:** {game_name or 'Unknown'}\n"
-            f"**Version:** {tag or 'Unknown'}\n"
+            f"**Version/Tag:** {tag or 'Unknown'}\n"
             f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n"
-            f"**Preview:**\n{body_preview}"
+            f"**Title**\n{title[:256]}\n\n"
+            f"**Body Preview**\n```\n{body_preview}\n```"
         )
         
         # Add download instructions if attachments present
         if has_attachments:
-            description += "\n\n📎 **Files attached below for download:**\n- `announcement_*.txt` - Copy/paste into Steam\n- `banner_*.png` - Upload as announcement image"
+            description += (
+                "\n\n📎 **Attachments**\n"
+                "- `announcement_*.txt` (copy/paste into Steam)\n"
+                "- `banner_*.png` (upload as the announcement image)"
+            )
         
         # Add direct link to description if App ID exists
         if steam_app_id:
@@ -270,11 +281,11 @@ class DiscordNotifier:
                     "inline": False
                 },
                 {
-                    "name": "⚠️ Important",
+                    "name": "💬 Why Discord?",
                     "value": (
-                        "Steam does not have a public posting API.\n"
-                        "You must manually copy/paste the announcement.\n"
-                        "All files are provided for easy upload."
+                        "Discord is the human approval checkpoint.\n"
+                        "WishlistOps generates a draft + files, then sends them somewhere you can quickly review before you publish in Steamworks.\n"
+                        "Steam posting is manual because Steam has no public announcement-posting API."
                     ),
                     "inline": False
                 }
@@ -288,7 +299,7 @@ class DiscordNotifier:
         # Add banner image if available
         if banner_url:
             embed["image"] = {"url": banner_url}
-        
+
         return embed
     
     async def send_error(self, error_message: str) -> bool:
@@ -396,12 +407,40 @@ class DiscordNotifier:
         except Exception as e:
             logger.error(f"Failed to send success notification: {e}")
             return False
+
+    async def send_test_message(self, message: str) -> bool:
+        """Send a lightweight test message to validate webhook configuration.
+
+        This is intended for local dashboard validation. It sends a single embed
+        and does not attach files.
+        """
+        if not self.webhook_url:
+            raise WebhookError("Discord webhook not configured")
+
+        if self.dry_run:
+            logger.info("DRY RUN: Would send Discord test message")
+            return False
+
+        embed = {
+            "title": "✅ WishlistOps Discord Test",
+            "description": message[:2000] if message else "Test message from WishlistOps dashboard.",
+            "color": 5763719,
+            "footer": {"text": "WishlistOps • Webhook Validation"},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        await self._send_webhook(embed)
+        return True
     
     async def _send_webhook(
         self,
         embed: dict,
         components: Optional[List[Dict[str, Any]]] = None,
-        files: Optional[List[Dict[str, Any]]] = None
+        files: Optional[List[Dict[str, Any]]] = None,
+        *,
+        # Backwards compatible single-file API (used by older tests/callers)
+        file_bytes: Optional[bytes] = None,
+        filename: Optional[str] = None,
     ) -> None:
         """
         Send payload to Discord webhook.
@@ -416,7 +455,7 @@ class DiscordNotifier:
         """
         payload = {
             "username": "WishlistOps",
-            "embeds": [embed]
+            "embeds": [embed],
         }
         
         if components:
@@ -424,19 +463,53 @@ class DiscordNotifier:
 
         request_kwargs: Dict[str, Any] = {"timeout": aiohttp.ClientTimeout(total=30)}
         
+        # If legacy args are provided, map them into the newer `files` structure.
+        if file_bytes is not None and filename:
+            existing = list(files or [])
+            if not any(str(f.get("name") or "") == str(filename) for f in existing):
+                existing.insert(0, {"name": filename, "bytes": file_bytes, "type": "binary"})
+            files = existing
+
         if files:
-            # Use multipart form data for file uploads
+            # Use multipart form data for file uploads.
+            # Discord expects file fields named like `files[0]`, `files[1]`.
             form = aiohttp.FormData()
+
+            prepared: list[tuple[int, str, bytes, str]] = []
+            attachments: list[dict[str, Any]] = []
+
+            for idx, file in enumerate(list(files)):
+                name = str(file.get("name") or f"file_{idx}")
+                data = file.get("bytes")
+                if not isinstance(data, (bytes, bytearray)):
+                    continue
+
+                content_type = "application/octet-stream"
+                lower = name.lower()
+                if lower.endswith(".png"):
+                    content_type = "image/png"
+                elif lower.endswith(".jpg") or lower.endswith(".jpeg"):
+                    content_type = "image/jpeg"
+                elif lower.endswith(".webp"):
+                    content_type = "image/webp"
+                elif lower.endswith(".txt"):
+                    content_type = "text/plain; charset=utf-8"
+
+                attachments.append({"id": idx, "filename": name})
+                prepared.append((idx, name, bytes(data), content_type))
+
+            if attachments:
+                payload["attachments"] = attachments
+
             form.add_field("payload_json", json.dumps(payload), content_type="application/json")
-            
-            for file in files:
+
+            for idx, name, blob, content_type in prepared:
                 form.add_field(
-                    "file" if len(files) == 1 else f"file{files.index(file)}",
-                    file["bytes"],
-                    filename=file["name"],
-                    content_type="application/octet-stream"
+                    f"files[{idx}]",
+                    blob,
+                    filename=name,
+                    content_type=content_type,
                 )
-            
             request_kwargs["data"] = form
         else:
             request_kwargs["json"] = payload

@@ -137,7 +137,8 @@ async def test_workflow_success_flow(mock_config_file: Path) -> None:
     from datetime import datetime
     from wishlistops.models import CommitType
     
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
+    # dry_run=True intentionally skips AI generation; this test verifies the mocked AI path.
+    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=False)
     
     # Create mock commits
     mock_commits = [
@@ -181,7 +182,8 @@ async def test_workflow_handles_ai_failure(mock_config_file: Path) -> None:
     from datetime import datetime
     from wishlistops.models import CommitType
     
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
+    # dry_run=True skips AI calls; this test verifies AI failure handling.
+    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=False)
     
     mock_commits = [
         Commit(
@@ -218,7 +220,8 @@ async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> 
     from datetime import datetime
     from wishlistops.models import CommitType
     
-    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=True)
+    # dry_run=True intentionally skips AI generation; this test verifies regeneration behavior.
+    orch = WishlistOpsOrchestrator(mock_config_file, dry_run=False)
     
     mock_commits = [
         Commit(
@@ -236,9 +239,17 @@ async def test_workflow_regenerates_on_filter_issues(mock_config_file: Path) -> 
         nonlocal generate_calls
         generate_calls += 1
         if generate_calls == 1:
-            return {'title': 'First attempt', 'body': 'Let us delve into this'}
+            # Include an avoid-phrase but keep body length above the minimum word count.
+            return {
+                'title': 'First attempt',
+                'body': 'Let us delve into this update. ' + ('More details. ' * 60)
+            }
         else:
-            return {'title': 'Second attempt', 'body': 'Clean content here'}
+            # Clean, sufficiently long body so the content filter can pass.
+            return {
+                'title': 'Second attempt',
+                'body': 'We fixed bugs and added new features. Thanks for your feedback! ' + ('More details. ' * 60)
+            }
     
     with patch.object(orch.state, 'get_last_post_date', return_value=None), \
          patch.object(orch.git, 'get_player_facing_commits', return_value=mock_commits), \

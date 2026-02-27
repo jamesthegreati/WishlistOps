@@ -1,0 +1,33 @@
+{
+  "last_run_timestamp": "2025-12-12T09:10:46.045117+00:00",
+  "last_tag": null,
+  "last_commit_sha": null,
+  "last_post_date": null,
+  "last_post_title": null,
+  "total_runs": 1,
+  "successful_runs": 1,
+  "failed_runs": 0,
+  "skipped_runs": 0,
+  "recent_runs": [
+    {
+      "timestamp": "2025-12-12T09:10:46.045117+00:00",
+      "tag": null,
+      "commit_sha": null,
+      "status": "success",
+      "draft_title": "```json",
+      "error": null
+    }
+  ],
+  "current_draft": {
+    "title": "```json",
+    "body": "{\n  \"title\": \"🚀 Exciting New Update for \\\"My Indie Game\\\"! Revamped UI, AI Visual Enhancements & More!\",\n  \"body\": \"Hello Adventurers!\\n\\nGet ready for a significantly smoother and more powerful experience in \\\"My Indie Game\\\"! We've been hard at work, and our latest update brings a host of exciting features and improvements designed to make your journey even more enjoyable. \\n\\nWe're thrilled to roll out a **production-ready deployment** with a completely revamped UI/UX and a brand new onboarding experience!\\n\\n✨ **What's New for You?**\\n\\n*   **Sleeker Dashboard:** Navigate your game world with ease thanks to a modern sidebar and intuitive status cards. Everything you need is now at your fingertips!\\n*   **Interactive Onboarding:** New to the game? Our wizard will guide you through the initial setup with clear, step-by-step instructions.\\n*   **AI-Powered Visual Enhancement:** Experience visuals like never before! We've integrated state-of-the-art AI to boost image quality by an impressive **+22.4%**. See more detail and richer textures in your game environment.\\n*   **Smart Cropping:** Our new AI system intelligently crops images to preserve the most important details, ensuring a better visual presentation.\\n*   **Improved CLI:** For our more technical players, the Command Line Interface is now more reliable with enhanced validation and error handling.\\n\\nWe've also focused on making the game feel more polished and responsive, with smooth animations and quick access to all your game's settings. \\n\\nThis update is a huge step forward, and we can't wait for you to experience it. Your feedback has been invaluable in shaping these changes, so please keep it coming!\\n\\nHappy Gaming!\\n\\nThe \\\"My Indie Game\\\" Development Team\"\n}\n```",
+    "banner_url": null,
+    "banner_path": null,
+    "created_at": "2025-12-12T12:10:46.043314",
+    "approved": false,
+    "approved_at": null
+  },
+  "version": "1.0",
+  "created_at": "2025-12-12T09:10:46.040087+00:00",
+  "updated_at": "2025-12-12T09:10:46.045117+00:00"
+}

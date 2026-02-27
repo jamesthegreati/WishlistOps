@@ -510,6 +510,11 @@
             background: var(--gradient-success);
             color: white;
         }
+
+        .btn-danger {
+            background: var(--accent-danger);
+            color: white;
+        }
         
         .btn-lg {
             padding: var(--spacing-md) var(--spacing-xl);
@@ -930,6 +935,41 @@
         .view {
             animation: fadeIn 0.3s ease-out;
         }
+
+        /* ============================================
+           Toasts
+           ============================================ */
+
+        .toast-container {
+            position: fixed;
+            right: var(--spacing-lg);
+            bottom: var(--spacing-lg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+            z-index: 9999;
+            max-width: min(420px, calc(100vw - 32px));
+        }
+
+        .toast {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: var(--spacing-md);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .toast-title {
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .toast-body {
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -942,6 +982,10 @@
                 <span class="logo-badge">v0.2.0</span>
             </div>
             <div class="header-actions">
+                <div class="status-badge" title="Active project (repo + config)">
+                    <span style="color: var(--text-muted);">Project:</span>
+                    <span id="active-project-name" style="font-weight: 700;">Loading…</span>
+                </div>
                 <div class="status-badge">
                     <span class="status-dot" id="connection-status"></span>
                     <span id="connection-text">Checking...</span>
@@ -1134,10 +1178,29 @@
                                     <a href="https://aistudio.google.com/apikey" target="_blank">Get your free API key →</a>
                                 </p>
                             </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Text Model</label>
+                                <select class="form-input" id="google-text-model" disabled>
+                                    <option value="">Click “Test & Load Models”</option>
+                                </select>
+                                <p class="form-hint">Used for announcement text generation (generateContent-capable models only).</p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Image Model</label>
+                                <select class="form-input" id="google-image-model" disabled>
+                                    <option value="">Click “Test & Load Models”</option>
+                                </select>
+                                <p class="form-hint">Optional. Used for image generation features (generateContent-capable models only).</p>
+                            </div>
                         </div>
                         <div class="card-footer flex justify-between items-center">
-                            <button class="btn btn-secondary" onclick="testGoogleAPI()">Test Connection</button>
-                            <button class="btn btn-primary" onclick="saveGoogleKey()">Save</button>
+                            <button class="btn btn-secondary" onclick="testGoogleAPI()">Test &amp; Load Models</button>
+                            <div class="flex gap-sm">
+                                <button class="btn btn-secondary" onclick="saveGoogleModels()">Save Models</button>
+                                <button class="btn btn-primary" onclick="saveGoogleKey()">Save Key</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -1155,12 +1218,12 @@
                                 <input type="url" class="form-input" id="discord-webhook" 
                                        placeholder="https://discord.com/api/webhooks/...">
                                 <p class="form-hint">
-                                    <a href="guides/discord.md" target="_blank">How to create a webhook →</a>
+                                    <a href="/guides/discord.md" target="_blank">How to create a webhook →</a>
                                 </p>
                             </div>
                         </div>
                         <div class="card-footer flex justify-between items-center">
-                            <button class="btn btn-secondary" onclick="testDiscordWebhook()">Test Connection</button>
+                            <button class="btn btn-secondary" onclick="testDiscordWebhook()">Send Test Message</button>
                             <button class="btn btn-primary" onclick="saveDiscordWebhook()">Save</button>
                         </div>
                     </div>
@@ -1406,6 +1469,10 @@
                 <div class="page-header">
                     <h1 class="page-title">✨ Generate Announcement</h1>
                     <p class="page-subtitle">Create a Steam announcement from your commits</p>
+                    <div class="status-badge mt-md" style="width: fit-content;">
+                        <span style="color: var(--text-muted);">Active project:</span>
+                        <span id="active-project-name-generate" style="font-weight: 700;">Loading…</span>
+                    </div>
                 </div>
                 
                 <div class="card">
@@ -1474,6 +1541,54 @@
                 <div class="page-header">
                     <h1 class="page-title">⚙️ Settings</h1>
                     <p class="page-subtitle">Configure WishlistOps preferences</p>
+                </div>
+
+                <!-- Projects / Repos -->
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h3 class="card-title">📁 Projects (Multiple Repos & Games)</h3>
+                        <button class="btn btn-secondary" onclick="refreshProjects()">Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <span class="alert-icon">🧭</span>
+                            <div class="alert-content">
+                                <h5>Active project controls everything</h5>
+                                <p>Commits, config, .env keys, screenshots, and banners all come from the selected repo. Add one project per game/repo.</p>
+                            </div>
+                        </div>
+
+                        <div id="projects-list" class="mt-md"></div>
+
+                        <div class="card mt-lg" style="background: var(--bg-tertiary);">
+                            <div class="card-header" style="border-bottom-color: var(--border-color);">
+                                <h3 class="card-title">Add Project</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="grid-2">
+                                    <div class="form-group">
+                                        <label class="form-label">Project Name</label>
+                                        <input type="text" class="form-input" id="project-name" placeholder="e.g., My Game (Steam)" />
+                                        <p class="form-hint">Just a label for the dashboard.</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Repo Path (local clone)</label>
+                                        <input type="text" class="form-input" id="project-repo-path" placeholder="C:\\dev\\my-game-repo" />
+                                        <p class="form-hint">Must exist on disk.</p>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Config Path (optional)</label>
+                                    <input type="text" class="form-input" id="project-config-path" placeholder="wishlistops\\config.json" />
+                                    <p class="form-hint">Leave blank to use <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 4px;">wishlistops/config.json</code> inside that repo.</p>
+                                </div>
+                            </div>
+                            <div class="card-footer flex justify-between items-center">
+                                <div class="text-muted" style="font-size: 0.85rem;">Tip: each repo can have its own <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 4px;">.env</code> with API keys.</div>
+                                <button class="btn btn-primary" onclick="saveProject()">Add Project</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Server Settings -->
@@ -1663,5 +1778,7 @@
     </div>
     
     <script src="/static/app_enhanced.js"></script>
+
+    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

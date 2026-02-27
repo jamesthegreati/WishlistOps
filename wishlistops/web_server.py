@@ -1,943 +1,948 @@
-"""
-WishlistOps Local Web Server
+"""Minimal local web server for the static dashboard.
 
-Launches a beautiful web interface for easy setup and monitoring.
-Handles OAuth integrations with Discord, Steam, GitHub, and Google AI.
+WishlistOps' dashboard is currently a static frontend (dashboard/index.html).
+This module exists so `python -m wishlistops.main setup` can actually launch a
+local server without requiring a separate backend.
+
+It intentionally does not expose any sensitive config values.
 """
 
-import asyncio
+from __future__ import annotations
+
 import json
-import logging
+import mimetypes
 import os
-import secrets
-import webbrowser
+import uuid
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
-from urllib.parse import urlencode, parse_qs, urlparse
+from typing import Any, Optional
 
-import aiohttp
 from aiohttp import web
-from aiohttp_session import setup as setup_session, get_session
-from aiohttp_session.cookie_storage import EncryptedCookieStorage
-
-from .config_manager import load_config, save_config, ConfigurationError
-from .state_manager import StateManager
-
-logger = logging.getLogger(__name__)
-
-# OAuth Configuration
-GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")  # Will be set in production
-GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
-DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
-DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
-
-# Server Configuration
-HOST = "127.0.0.1"
-PORT = 8080
-BASE_URL = f"http://{HOST}:{PORT}"
 
 
-class WishlistOpsWebServer:
-    """Local web server for WishlistOps dashboard."""
-    
-    def __init__(self, config_path: Path):
-        self.config_path = config_path
-        self.app = web.Application()
-        self.session_secret = secrets.token_bytes(32)
-        self.oauth_states: Dict[str, Dict[str, Any]] = {}
-        
-        # Setup session middleware
-        setup_session(self.app, EncryptedCookieStorage(self.session_secret))
-        
-        # Setup routes
-        self._setup_routes()
-        
-        # Load or create config
-        try:
-            self.config = load_config(config_path)
-        except FileNotFoundError:
-            self.config = None
-            logger.info("No config found, will create new via setup wizard")
-        except ConfigurationError as e:
-            # Allow server to start even if secrets/env vars missing so user can supply them
-            logger.warning(f"Configuration incomplete: {e}. Launching setup wizard.")
-            self.config = None
-    
-    def _setup_routes(self):
-        """Setup all web routes."""
-        # Static files
-        static_dir = Path(__file__).parent.parent / "dashboard"
-        self.app.router.add_static('/static/', static_dir, name='static')
-        
-        # Main pages
-        self.app.router.add_get('/', self.handle_index)
-        self.app.router.add_get('/setup', self.handle_setup)
-        self.app.router.add_get('/monitor', self.handle_monitor)
-        self.app.router.add_get('/commits', self.handle_commits)
-        self.app.router.add_get('/test', self.handle_test)
-        self.app.router.add_get('/docs', self.handle_docs)
-        
-        # API endpoints
-        self.app.router.add_get('/api/status', self.handle_status)
-        self.app.router.add_get('/api/health', self.handle_health)
-        self.app.router.add_get('/health', self.handle_health)  # Alias for frontend compatibility
-        self.app.router.add_get('/api/version', self.handle_version)
-        self.app.router.add_get('/api/projects', self.handle_projects)
-        self.app.router.add_get('/api/config', self.handle_get_config)
-        self.app.router.add_post('/api/config', self.handle_save_config)
-        self.app.router.add_get('/api/announcements', self.handle_announcements)
-        self.app.router.add_get('/api/commits', self.handle_api_commits)
-        self.app.router.add_post('/api/test-announcement', self.handle_test_announcement)
-        self.app.router.add_post('/api/upload/logo', self.handle_upload_logo)
-        self.app.router.add_post('/api/upload/banner', self.handle_upload_banner)
-        self.app.router.add_get('/api/steam/games', self.handle_steam_games)
-        self.app.router.add_get('/api/steam/game/{app_id}', self.handle_steam_game_context)
-        self.app.router.add_get('/api/export/announcement/{run_id}', self.handle_export_announcement)
-        self.app.router.add_get('/api/export/banner/{filename}', self.handle_export_banner)
-        
-        # OAuth callbacks
-        self.app.router.add_get('/auth/github', self.handle_github_auth)
-        self.app.router.add_get('/auth/github/callback', self.handle_github_callback)
-        self.app.router.add_get('/auth/discord', self.handle_discord_auth)
-        self.app.router.add_get('/auth/discord/callback', self.handle_discord_callback)
-        self.app.router.add_post('/auth/google-ai', self.handle_google_ai_auth)
-        
-        # Logout
-        self.app.router.add_post('/auth/logout', self.handle_logout)
-    
-    async def handle_index(self, request: web.Request) -> web.Response:
-        """Serve main dashboard page."""
-        # Always serve the main dashboard - no auth required for local use
-        return web.FileResponse(
-            Path(__file__).parent.parent / "dashboard" / "index.html"
-        )
-    
-    async def handle_setup(self, request: web.Request) -> web.Response:
-        """Serve setup wizard page."""
-        return web.FileResponse(
-            Path(__file__).parent.parent / "dashboard" / "setup.html"
-        )
-    
-    async def handle_monitor(self, request: web.Request) -> web.Response:
-        """Serve monitoring page."""
-        return web.FileResponse(
-            Path(__file__).parent.parent / "dashboard" / "monitor.html"
-        )
-    
-    async def handle_commits(self, request: web.Request) -> web.Response:
-        """Serve commit history page."""
-        return web.FileResponse(
-            Path(__file__).parent.parent / "dashboard" / "commits.html"
-        )
-    
-    async def handle_test(self, request: web.Request) -> web.Response:
-        """Serve test announcement page."""
-        return web.FileResponse(
-            Path(__file__).parent.parent / "dashboard" / "test.html"
-        )
-    
-    async def handle_docs(self, request: web.Request) -> web.Response:
-        """Serve documentation page."""
-        return web.FileResponse(
-            Path(__file__).parent.parent / "dashboard" / "docs.html"
-        )
-    
-    async def handle_status(self, request: web.Request) -> web.Response:
-        """Get current authentication and setup status."""
-        session = await get_session(request)
-        
-        status = {
-            "authenticated": {
-                "github": bool(session.get('github_token')),
-                "discord": bool(session.get('discord_webhook')),
-                "google_ai": bool(session.get('google_ai_key')),
-            },
-            "config_exists": self.config is not None,
-            "projects": []
-        }
-        
-        if session.get('github_token'):
-            # Fetch user's repositories
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _projects_file(workspace_root: Path) -> Path:
+    return workspace_root / ".wishlistops_projects.json"
+
+
+class ProjectManager:
+    """Persists and selects the active WishlistOps 'project' (repo + config).
+
+    A project represents a local Git repository plus the config.json to use for
+    generation. This enables working with multiple repos / multiple games.
+    """
+
+    def __init__(self, workspace_root: Path, default_repo_root: Path, default_config_path: Path) -> None:
+        self.workspace_root = workspace_root
+        self.path = _projects_file(workspace_root)
+        self._data: dict[str, Any] = {}
+        self._load_or_init(default_repo_root=default_repo_root, default_config_path=default_config_path)
+
+    def _load_or_init(self, default_repo_root: Path, default_config_path: Path) -> None:
+        if self.path.exists():
             try:
-                repos = await self._fetch_github_repos(session['github_token'])
-                status["projects"] = repos
-            except Exception as e:
-                logger.error(f"Failed to fetch repos: {e}")
-        
-        return web.json_response(status)
-    
-    async def handle_health(self, request: web.Request) -> web.Response:
-        """Health check endpoint for monitoring."""
-        health_data = {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "version": "1.0.0",
-            "services": {
-                "config": self.config is not None,
-                "web_server": True
-            }
-        }
-        
-        # Check if critical environment variables are set
-        env_checks = {
-            "STEAM_API_KEY": bool(os.getenv("STEAM_API_KEY")),
-            "GOOGLE_AI_KEY": bool(os.getenv("GOOGLE_AI_KEY")),
-            "DISCORD_WEBHOOK_URL": bool(os.getenv("DISCORD_WEBHOOK_URL"))
-        }
-        health_data["environment"] = env_checks
-        
-        # Determine overall health
-        if not any(env_checks.values()):
-            health_data["status"] = "degraded"
-            health_data["message"] = "No API keys configured"
-        
-        return web.json_response(health_data)
-    
-    async def handle_version(self, request: web.Request) -> web.Response:
-        """Version information endpoint."""
-        version_data = {
-            "version": "1.0.0",
-            "name": "WishlistOps",
-            "description": "Automated Steam announcement generation from Git commits",
-            "author": "Your Name",
-            "license": "MIT",
-            "repository": "https://github.com/yourusername/wishlistops",
-            "features": [
-                "AI-powered announcement generation",
-                "Discord approval workflow",
-                "Steam game context integration",
-                "Anti-slop content filtering",
-                "Git commit analysis",
-                "Beautiful web dashboard"
+                self._data = json.loads(self.path.read_text(encoding="utf-8"))
+            except Exception:
+                self._data = {}
+
+        if not isinstance(self._data, dict):
+            self._data = {}
+
+        self._data.setdefault("version", 1)
+        self._data.setdefault("projects", [])
+        if not isinstance(self._data.get("projects"), list):
+            self._data["projects"] = []
+
+        if not self._data["projects"]:
+            default_id = "default"
+            self._data["projects"] = [
+                {
+                    "id": default_id,
+                    "name": "Default",
+                    "repo_path": str(default_repo_root),
+                    "config_path": str(default_config_path),
+                    "discord_enabled": True,
+                }
             ]
+            self._data["active_id"] = default_id
+
+        if not self._data.get("active_id"):
+            self._data["active_id"] = str(self._data["projects"][0].get("id") or "default")
+
+        # Backfill per-project prefs introduced after initial release.
+        changed = False
+        for p in self.list_projects():
+            if "discord_enabled" not in p:
+                p["discord_enabled"] = True
+                changed = True
+        if changed:
+            self._data["projects"] = self.list_projects()
+
+        self._save()
+
+    def _save(self) -> None:
+        try:
+            self.path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        except Exception:
+            # Dashboard should remain usable even if persistence fails.
+            pass
+
+    def list_projects(self) -> list[dict[str, Any]]:
+        projects = self._data.get("projects")
+        return projects if isinstance(projects, list) else []
+
+    def active_id(self) -> str:
+        return str(self._data.get("active_id") or "")
+
+    def _get_project(self, project_id: Optional[str] = None) -> dict[str, Any]:
+        pid = str(project_id or self.active_id())
+        for p in self.list_projects():
+            if str(p.get("id") or "") == pid:
+                return p
+        # Fallback to first
+        projects = self.list_projects()
+        return projects[0] if projects else {}
+
+    def active_repo_root(self) -> Path:
+        p = self._get_project()
+        return Path(str(p.get("repo_path") or self.workspace_root)).resolve()
+
+    def active_config_path(self) -> Path:
+        p = self._get_project()
+        return Path(str(p.get("config_path") or (self.workspace_root / "wishlistops" / "config.json"))).resolve()
+
+    def select(self, project_id: str) -> bool:
+        pid = str(project_id or "").strip()
+        if not pid:
+            return False
+        if any(str(p.get("id") or "") == pid for p in self.list_projects()):
+            self._data["active_id"] = pid
+            self._save()
+            return True
+        return False
+
+    def delete(self, project_id: str) -> bool:
+        pid = str(project_id or "").strip()
+        if not pid:
+            return False
+        projects = [p for p in self.list_projects() if str(p.get("id") or "") != pid]
+        if len(projects) == len(self.list_projects()):
+            return False
+        self._data["projects"] = projects
+        if self.active_id() == pid:
+            self._data["active_id"] = str(projects[0].get("id")) if projects else ""
+        self._save()
+        return True
+
+    def upsert(self, project: dict[str, Any]) -> dict[str, Any]:
+        """Create or update a project.
+
+        Expected keys: id(optional), name, repo_path, config_path(optional)
+        """
+        name = str(project.get("name") or "").strip() or "Project"
+        repo_path_raw = str(project.get("repo_path") or "").strip()
+        config_path_raw = str(project.get("config_path") or "").strip()
+
+        if not repo_path_raw:
+            raise ValueError("repo_path is required")
+
+        repo_candidate = Path(repo_path_raw).expanduser()
+        if not repo_candidate.is_absolute():
+            repo_candidate = (self.workspace_root / repo_candidate).resolve()
+        if not repo_candidate.exists() or not repo_candidate.is_dir():
+            raise ValueError(f"repo_path not found: {repo_candidate}")
+
+        # Normalize to the actual Git repo root if possible.
+        try:
+            import git
+
+            repo = git.Repo(repo_candidate, search_parent_directories=True)
+            repo_root = Path(repo.working_dir).resolve()
+        except Exception:
+            repo_root = repo_candidate.resolve()
+
+        if config_path_raw:
+            cfg_candidate = Path(config_path_raw).expanduser()
+            if not cfg_candidate.is_absolute():
+                cfg_candidate = (repo_root / cfg_candidate).resolve()
+        else:
+            cfg_candidate = (repo_root / "wishlistops" / "config.json").resolve()
+
+        if not cfg_candidate.exists() or not cfg_candidate.is_file():
+            raise ValueError(f"config_path not found: {cfg_candidate}")
+
+        pid = str(project.get("id") or "").strip() or uuid.uuid4().hex
+
+        # Preference: whether the Discord approval step is enabled for this project.
+        incoming_discord_enabled = project.get("discord_enabled")
+        discord_enabled: bool
+        if incoming_discord_enabled is None:
+            # Preserve existing if updating an existing project.
+            existing = self._get_project(pid)
+            discord_enabled = bool(existing.get("discord_enabled", True))
+        else:
+            discord_enabled = bool(incoming_discord_enabled)
+
+        entry = {
+            "id": pid,
+            "name": name,
+            "repo_path": str(repo_root),
+            "config_path": str(cfg_candidate),
+            "discord_enabled": discord_enabled,
         }
-        return web.json_response(version_data)
-    
-    async def handle_projects(self, request: web.Request) -> web.Response:
-        """Get user's GitHub projects."""
-        session = await get_session(request)
-        
-        if not session.get('github_token'):
-            return web.json_response({"error": "Not authenticated"}, status=401)
-        
+
+        projects = self.list_projects()
+        replaced = False
+        for i, p in enumerate(projects):
+            if str(p.get("id") or "") == pid:
+                projects[i] = entry
+                replaced = True
+                break
+        if not replaced:
+            projects.append(entry)
+
+        self._data["projects"] = projects
+        if not self.active_id():
+            self._data["active_id"] = pid
+        self._save()
+        return entry
+
+
+def _dotenv_path(repo_root: Path) -> Path:
+    return repo_root / ".env"
+
+
+def _parse_dotenv(content: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            values[key] = value
+    return values
+
+
+def _update_dotenv(path: Path, updates: dict[str, Optional[str]]) -> None:
+    existing: dict[str, str] = {}
+    if path.exists():
         try:
-            repos = await self._fetch_github_repos(session['github_token'])
-            return web.json_response({"projects": repos})
-        except Exception as e:
-            logger.error(f"Failed to fetch projects: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-    
-    async def handle_get_config(self, request: web.Request) -> web.Response:
-        """Get current configuration."""
+            existing = _parse_dotenv(path.read_text(encoding="utf-8"))
+        except OSError:
+            existing = {}
+
+    for key, value in updates.items():
+        if value is None:
+            existing.pop(key, None)
+        else:
+            existing[key] = value
+
+    lines = ["# WishlistOps local secrets (do not commit)"]
+    for key in sorted(existing.keys()):
+        value = existing[key]
+        safe = value.replace("\n", "\\n")
+        lines.append(f"{key}={safe}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _json_response(data: Any, status: int = 200) -> web.Response:
+    return web.json_response(data, status=status)
+
+
+async def _read_json(request: web.Request) -> dict[str, Any]:
+    try:
+        return await request.json()
+    except Exception:
+        return {}
+
+
+def _safe_config_for_client(config_path: Path) -> dict[str, Any]:
+    if not config_path.exists():
+        return {}
+    try:
+        return json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _env_status(repo_root: Path) -> dict[str, Any]:
+    # Never return secret values; only indicate presence.
+    env_file = _dotenv_path(repo_root)
+    file_values: dict[str, str] = {}
+    if env_file.exists():
         try:
-            if self.config:
-                # Return safe config data (no secrets)
-                config_data = {
-                    "steam": {
-                        "app_id": getattr(self.config.steam, 'app_id', ''),
-                        "app_name": getattr(self.config.steam, 'app_name', '')
-                    } if hasattr(self.config, 'steam') else {},
-                    "branding": {
-                        "art_style": getattr(self.config.branding, 'art_style', ''),
-                        "color_palette": getattr(self.config.branding, 'color_palette', []),
-                        "logo_position": getattr(self.config.branding, 'logo_position', 'center'),
-                        "logo_size_percent": getattr(self.config.branding, 'logo_size_percent', 30)
-                    } if hasattr(self.config, 'branding') else {},
-                    "voice": {
-                        "tone": getattr(self.config.voice, 'tone', ''),
-                        "personality": getattr(self.config.voice, 'personality', ''),
-                        "avoid_phrases": getattr(self.config.voice, 'avoid_phrases', [])
-                    } if hasattr(self.config, 'voice') else {},
-                    "automation": {
-                        "enabled": getattr(self.config.automation, 'enabled', True),
-                        "trigger_on_tags": getattr(self.config.automation, 'trigger_on_tags', True),
-                        "min_days_between_posts": getattr(self.config.automation, 'min_days_between_posts', 7),
-                        "require_manual_approval": getattr(self.config.automation, 'require_manual_approval', True)
-                    } if hasattr(self.config, 'automation') else {}
-                }
-                return web.json_response({"config": config_data})
-            else:
-                return web.json_response({"config": None})
-        except Exception as e:
-            logger.error(f"Failed to get config: {e}")
-            return web.json_response({"config": None})
-    
-    async def handle_save_config(self, request: web.Request) -> web.Response:
-        """Save configuration."""
-        session = await get_session(request)
-        
+            file_values = _parse_dotenv(env_file.read_text(encoding="utf-8"))
+        except OSError:
+            file_values = {}
+
+    def _present(key: str) -> bool:
+        return bool(os.getenv(key) or file_values.get(key))
+
+    return {
+        "GOOGLE_AI_KEY": _present("GOOGLE_AI_KEY"),
+        "DISCORD_WEBHOOK_URL": _present("DISCORD_WEBHOOK_URL"),
+        "STEAM_API_KEY": _present("STEAM_API_KEY"),
+    }
+
+
+def _get_env_value(repo_root: Path, key: str) -> Optional[str]:
+    value = os.getenv(key)
+    if value:
+        return value
+
+    env_file = _dotenv_path(repo_root)
+    if not env_file.exists():
+        return None
+    try:
+        values = _parse_dotenv(env_file.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    found = values.get(key)
+    return found or None
+
+
+def _is_safe_file(repo_root: Path, candidate: Path) -> bool:
+    """Allowlist for files the dashboard can serve back to the browser."""
+    try:
+        resolved = candidate.resolve()
+        rr = repo_root.resolve()
+    except OSError:
+        return False
+
+    allowed_roots = [
+        rr / "wishlistops" / "banners",
+        rr / "wishlistops" / "previews",
+        rr / "wishlistops" / "assets",
+        rr / "screenshots",
+    ]
+    for root in allowed_roots:
         try:
-            data = await request.json()
-            
-            # Check if we have env vars - if not, require them in the request
-            if not os.getenv('GOOGLE_AI_KEY') and not data.get('google_ai_key'):
-                return web.json_response({
-                    "error": "GOOGLE_AI_KEY is required. Set it in environment or provide in config."
-                }, status=400)
-            
-            if not os.getenv('DISCORD_WEBHOOK_URL') and not data.get('discord_webhook_url'):
-                return web.json_response({
-                    "error": "DISCORD_WEBHOOK_URL is required. Set it in environment or provide in config."
-                }, status=400)
-            
-            # Merge with environment variables (env vars take precedence)
-            data['google_ai_key'] = os.getenv('GOOGLE_AI_KEY') or data.get('google_ai_key', '')
-            data['discord_webhook_url'] = os.getenv('DISCORD_WEBHOOK_URL') or data.get('discord_webhook_url', '')
-            data['github_token'] = os.getenv('GITHUB_TOKEN') or session.get('github_token', '') or data.get('github_token', '')
-            
-            # Save to file
-            save_config(self.config_path, data)
-            self.config = load_config(self.config_path)
-            
-            return web.json_response({"success": True})
-        except Exception as e:
-            logger.error(f"Failed to save config: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-    
-    async def handle_announcements(self, request: web.Request) -> web.Response:
-        """Get announcement history."""
+            if resolved.is_relative_to(root.resolve()):
+                return True
+        except AttributeError:
+            # Python < 3.9 fallback not needed in this repo, but keep defensive.
+            if str(root.resolve()) in str(resolved):
+                return True
+    return False
+
+
+def _coerce_commit_type(commit_type: str):
+    # Map GitParser's string types to the Pydantic CommitType enum.
+    from .models import CommitType
+
+    ct = (commit_type or "").lower()
+    if ct in {"fix", "bugfix"}:
+        return CommitType.BUGFIX
+    return CommitType.FEATURE
+
+
+def _convert_git_commit(git_commit) -> "CommitModel":
+    from .models import Commit as CommitModel
+
+    screenshot = getattr(git_commit, "screenshot_path", None)
+    return CommitModel(
+        sha=str(getattr(git_commit, "sha")),
+        message=str(getattr(git_commit, "message")),
+        author=str(getattr(git_commit, "author")),
+        timestamp=getattr(git_commit, "date"),
+        commit_type=_coerce_commit_type(getattr(git_commit, "commit_type", "")),
+        files_changed=list(getattr(git_commit, "files_changed", []) or []),
+        screenshot_path=str(screenshot) if screenshot else None,
+    )
+
+
+def run_server(config_path: Path, port: int = 8080) -> None:
+    """Run a small aiohttp server that serves the dashboard UI.
+
+    Args:
+        config_path: Path to config.json (currently unused; reserved for future API endpoints).
+        port: Port to bind to.
+    """
+
+    workspace_root = _repo_root()
+    dashboard_dir = workspace_root / "dashboard"
+    static_dir = dashboard_dir / "static"
+
+    if not (dashboard_dir / "index.html").exists():
+        raise FileNotFoundError(f"dashboard/index.html not found at {dashboard_dir!s}")
+
+    app = web.Application(client_max_size=25 * 1024 * 1024)
+
+    # Keep config path accessible to handlers.
+    # Workspace root hosts the dashboard assets. Repo root/config path are project-scoped.
+    app["workspace_root"] = workspace_root
+    app["project_manager"] = ProjectManager(
+        workspace_root=workspace_root,
+        default_repo_root=workspace_root,
+        default_config_path=config_path,
+    )
+
+    def _ctx(request: web.Request) -> tuple[Path, Path, dict[str, Any]]:
+        pm: ProjectManager = request.app["project_manager"]
+        rr = pm.active_repo_root()
+        cfg = pm.active_config_path()
+        p = pm._get_project()  # internal; returns dict
+        return rr, cfg, p
+
+    async def index(_: web.Request) -> web.Response:
+        return web.FileResponse(dashboard_dir / "index.html")
+
+    async def docs(_: web.Request) -> web.Response:
+        # Styled docs page (keeps UI consistent with dashboard theme).
+        page = dashboard_dir / "docs.html"
+        if page.exists():
+            return web.FileResponse(page)
+
+        # Fallback: render the repo README as plain text.
+        readme = workspace_root / "README.md"
+        if not readme.exists():
+            return web.Response(text="README.md not found", status=404)
+        return web.Response(text=readme.read_text(encoding="utf-8"), content_type="text/markdown")
+
+    async def health(_: web.Request) -> web.Response:
+        return _json_response({"ok": True})
+
+    async def get_config(request: web.Request) -> web.Response:
+        rr, path, project = _ctx(request)
+        return _json_response({"config": _safe_config_for_client(path), "path": str(path), "project": project})
+
+    async def save_config(request: web.Request) -> web.Response:
+        payload = await _read_json(request)
+        new_config = payload.get("config")
+        if not isinstance(new_config, dict):
+            return _json_response({"error": "Invalid config payload"}, status=400)
+
+        from .config_manager import save_config as save_config_file
+
+        _, path, _ = _ctx(request)
         try:
-            state_manager = StateManager(self.config_path.parent / "state.json")
-            history = state_manager.get_announcement_history()
-            
-            return web.json_response({
-                "announcements": [
-                    {
-                        "title": h.get("title", ""),
-                        "timestamp": h.get("timestamp", ""),
-                        "project": h.get("project", ""),
-                        "status": h.get("status", "pending")
-                    }
-                    for h in history
-                ]
-            })
-        except Exception as e:
-            logger.error(f"Failed to fetch announcements: {e}")
-            return web.json_response({"announcements": []})
-    
-    async def handle_steam_games(self, request: web.Request) -> web.Response:
-        """Detect Steam games from user's library."""
-        session = await get_session(request)
-        
-        # Get Steam credentials from session or config
-        steam_api_key = session.get('steam_api_key') or os.getenv('STEAM_API_KEY')
-        steam_id = session.get('steam_id') or os.getenv('STEAM_ID')
-        
-        if not steam_api_key:
-            return web.json_response({
-                "error": "Steam API key not configured",
-                "message": "Please add STEAM_API_KEY to your environment or setup",
-                "games": []
-            })
-        
-        if not steam_id:
-            return web.json_response({
-                "error": "Steam ID not configured",
-                "message": "Please add STEAM_ID to your environment or setup",
-                "games": []
-            })
-        
+            save_config_file(path, new_config)
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=400)
+        return _json_response({"ok": True})
+
+    async def get_env(request: web.Request) -> web.Response:
+        rr, _, _ = _ctx(request)
+        return _json_response({"env": _env_status(rr)})
+
+    async def save_env(request: web.Request) -> web.Response:
+        rr, _, _ = _ctx(request)
+        payload = await _read_json(request)
+        env_updates = payload.get("env")
+        if not isinstance(env_updates, dict):
+            return _json_response({"error": "Invalid env payload"}, status=400)
+
+        allowed_keys = {"GOOGLE_AI_KEY", "DISCORD_WEBHOOK_URL", "STEAM_API_KEY"}
+        updates: dict[str, Optional[str]] = {}
+        for key in allowed_keys:
+            if key in env_updates:
+                value = env_updates.get(key)
+                if value is None or value == "":
+                    updates[key] = None
+                elif isinstance(value, str):
+                    updates[key] = value.strip()
         try:
-            from .steam_client import SteamClient
-            
-            client = SteamClient(steam_api_key)
-            
-            # Get user's owned games
-            games = await client.get_owned_games(steam_id)
-            
-            # Format for response
-            games_data = [{
-                "app_id": game.app_id,
-                "name": game.name,
-                "playtime_minutes": game.playtime_minutes,
-                "playtime_hours": round(game.playtime_minutes / 60, 1),
-                "has_stats": game.has_community_visible_stats,
-                "icon_url": f"https://media.steampowered.com/steamcommunity/public/images/apps/{game.app_id}/{game.img_icon_url}.jpg" if game.img_icon_url else None,
-                "logo_url": f"https://media.steampowered.com/steamcommunity/public/images/apps/{game.app_id}/{game.img_logo_url}.jpg" if game.img_logo_url else None
-            } for game in games]
-            
-            # Sort by playtime (likely developer games first)
-            games_data.sort(key=lambda x: x['playtime_minutes'], reverse=True)
-            
-            return web.json_response({
-                "games": games_data,
-                "total": len(games_data),
-                "steam_id": steam_id
-            })
-            
-        except Exception as e:
-            logger.error(f"Failed to fetch Steam games: {e}", exc_info=True)
-            return web.json_response({
-                "error": str(e),
-                "games": []
-            }, status=500)
-    
-    async def handle_steam_game_context(self, request: web.Request) -> web.Response:
-        """Get detailed game context for announcement generation."""
-        app_id = request.match_info.get('app_id')
-        
-        if not app_id:
-            return web.json_response({"error": "App ID required"}, status=400)
-        
-        # Get Steam API key
-        steam_api_key = os.getenv('STEAM_API_KEY')
-        
-        if not steam_api_key:
-            return web.json_response({
-                "error": "Steam API key not configured",
-                "message": "Please add STEAM_API_KEY to your environment"
-            }, status=400)
-        
+            _update_dotenv(_dotenv_path(rr), updates)
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+        return _json_response({"ok": True, "env": _env_status(rr)})
+
+    async def get_state(request: web.Request) -> web.Response:
+        rr, config_path_local, _ = _ctx(request)
+        state_path = config_path_local.parent / "state.json"
+        from .state_manager import StateManager
+
         try:
-            from .steam_client import SteamClient
-            
-            client = SteamClient(steam_api_key)
-            
-            # Get enriched game context
-            context = await client.get_game_context(app_id)
-            
-            return web.json_response({
-                "success": True,
-                "context": context
-            })
-            
-        except Exception as e:
-            logger.error(f"Failed to fetch game context for {app_id}: {e}", exc_info=True)
-            return web.json_response({
-                "error": str(e),
-                "context": None
-            }, status=500)
-    
-    # OAuth Handlers - GitHub
-    
-    async def handle_github_auth(self, request: web.Request) -> web.Response:
-        """Initiate GitHub OAuth flow."""
-        state = secrets.token_urlsafe(32)
-        self.oauth_states[state] = {"service": "github", "created_at": datetime.now()}
-        
-        # If no client ID, use device flow or personal token
-        if not GITHUB_CLIENT_ID:
-            return web.Response(
-                text="""
-                <html>
-                <head><title>GitHub Authentication</title></head>
-                <body style="font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px;">
-                    <h2>GitHub Personal Access Token</h2>
-                    <p>To connect GitHub, create a Personal Access Token:</p>
-                    <ol>
-                        <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank">GitHub Settings → Tokens</a></li>
-                        <li>Click "Generate new token (classic)"</li>
-                        <li>Name it "WishlistOps"</li>
-                        <li>Select scopes: <code>repo</code>, <code>workflow</code></li>
-                        <li>Click "Generate token"</li>
-                        <li>Copy the token and paste below</li>
-                    </ol>
-                    <form method="POST" action="/auth/github/token">
-                        <input type="text" name="token" placeholder="ghp_..." style="width: 100%; padding: 10px; margin: 10px 0;">
-                        <button type="submit" style="padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer;">Connect</button>
-                    </form>
-                </body>
-                </html>
-                """,
-                content_type='text/html'
-            )
-        
-        # OAuth flow
-        params = {
-            "client_id": GITHUB_CLIENT_ID,
-            "redirect_uri": f"{BASE_URL}/auth/github/callback",
-            "scope": "repo workflow",
-            "state": state
-        }
-        
-        auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
-        raise web.HTTPFound(auth_url)
-    
-    async def handle_github_callback(self, request: web.Request) -> web.Response:
-        """Handle GitHub OAuth callback."""
-        code = request.query.get('code')
-        state = request.query.get('state')
-        
-        if not code or state not in self.oauth_states:
-            return web.Response(text="Invalid OAuth state", status=400)
-        
-        # Exchange code for token
-        async with aiohttp.ClientSession() as client:
-            async with client.post(
-                "https://github.com/login/oauth/access_token",
-                data={
-                    "client_id": GITHUB_CLIENT_ID,
-                    "client_secret": GITHUB_CLIENT_SECRET,
-                    "code": code
-                },
-                headers={"Accept": "application/json"}
-            ) as resp:
-                data = await resp.json()
-                access_token = data.get('access_token')
-        
-        if not access_token:
-            return web.Response(text="Failed to get access token", status=500)
-        
-        # Store in session
-        session = await get_session(request)
-        session['github_token'] = access_token
-        
-        # Cleanup
-        del self.oauth_states[state]
-        
-        raise web.HTTPFound('/')
-    
-    # OAuth Handlers - Discord
-    
-    async def handle_discord_auth(self, request: web.Request) -> web.Response:
-        """Guide user to create Discord webhook."""
-        return web.Response(
-            text="""
-            <html>
-            <head><title>Discord Webhook Setup</title></head>
-            <body style="font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px;">
-                <h2>Discord Webhook Setup</h2>
-                <p>To receive approval requests in Discord:</p>
-                <ol>
-                    <li>Open your Discord server</li>
-                    <li>Go to Server Settings → Integrations → Webhooks</li>
-                    <li>Click "New Webhook"</li>
-                    <li>Name it "WishlistOps"</li>
-                    <li>Choose a channel (e.g., #game-marketing)</li>
-                    <li>Click "Copy Webhook URL"</li>
-                    <li>Paste below</li>
-                </ol>
-                <img src="/static/images/discord-webhook-guide.png" alt="Discord Webhook Guide" style="max-width: 100%; border: 1px solid #ddd; margin: 20px 0;">
-                <form method="POST" action="/auth/discord/webhook">
-                    <input type="url" name="webhook" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; padding: 10px; margin: 10px 0;" required>
-                    <button type="submit" style="padding: 10px 20px; background: #5865F2; color: white; border: none; cursor: pointer;">Connect Discord</button>
-                </form>
-                <p><small>Your webhook URL is stored securely on your local machine only.</small></p>
-            </body>
-            </html>
-            """,
-            content_type='text/html'
-        )
-    
-    async def handle_discord_callback(self, request: web.Request) -> web.Response:
-        """Handle Discord webhook submission."""
-        data = await request.post()
-        webhook_url = data.get('webhook')
-        
-        if not webhook_url or not webhook_url.startswith('https://discord.com/api/webhooks/'):
-            return web.Response(text="Invalid webhook URL", status=400)
-        
-        # Verify webhook works
-        async with aiohttp.ClientSession() as client:
-            try:
-                async with client.post(
-                    webhook_url,
-                    json={"content": "✅ WishlistOps connected successfully!"}
-                ) as resp:
-                    if resp.status not in (200, 204):
-                        return web.Response(text="Webhook verification failed", status=400)
-            except Exception as e:
-                return web.Response(text=f"Webhook error: {e}", status=400)
-        
-        # Store in session
-        session = await get_session(request)
-        session['discord_webhook'] = webhook_url
-        
-        raise web.HTTPFound('/')
-    
-    # Google AI Setup
-    
-    async def handle_google_ai_auth(self, request: web.Request) -> web.Response:
-        """Handle Google AI API key submission."""
-        data = await request.json()
-        api_key = data.get('api_key')
-        
-        if not api_key or not api_key.startswith('AIza'):
-            return web.json_response({"error": "Invalid API key format"}, status=400)
-        
-        # Store in session
-        session = await get_session(request)
-        session['google_ai_key'] = api_key
-        
-        return web.json_response({"success": True})
-    
-    async def handle_logout(self, request: web.Request) -> web.Response:
-        """Clear session and logout."""
-        session = await get_session(request)
-        session.clear()
-        
-        return web.json_response({"success": True})
-    
-    # Commit History API
-    
-    async def handle_api_commits(self, request: web.Request) -> web.Response:
-        """Get commit history with announcement associations."""
+            sm = StateManager(state_path)
+            stats = sm.get_statistics()
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        return _json_response({"stats": stats, "state_path": str(state_path)})
+
+    async def get_commits(request: web.Request) -> web.Response:
+        rr, _, _ = _ctx(request)
+        since_tag = request.query.get("since_tag") or None
+
+        from .git_parser import GitParser
+
         try:
-            from .git_parser import GitParser
-            
-            # Get repo path from config or use current directory
-            repo_path = Path.cwd()
-            if self.config and hasattr(self.config, 'repo_path'):
-                repo_path = Path(self.config.repo_path)
-            
-            parser = GitParser(repo_path)
-            
-            # Get commits (limit to last 100)
-            all_commits = parser.get_commits_since_tag(None)[:100]
-            
-            # Load state to check which commits triggered announcements
-            state_path = self.config_path.parent / "state.json"
-            state_manager = StateManager(state_path) if state_path.exists() else None
-            
-            # Build response with commit details
-            commits_data = []
-            for commit in all_commits:
-                commit_data = {
-                    "sha": commit.sha,
-                    "message": commit.message.split('\\n')[0][:100],  # First line only
-                    "full_message": commit.message,
-                    "author": commit.author,
-                    "date": commit.date.isoformat(),
-                    "is_player_facing": commit.is_player_facing,
-                    "commit_type": commit.commit_type,
-                    "files_changed": commit.files_changed[:10],  # Limit file list
-                    "has_screenshot": commit.screenshot_path is not None,
-                    "triggered_announcement": False  # Will be populated from state
-                }
-                
-                # Check if this commit triggered an announcement
-                if state_manager:
-                    for run in state_manager.state.recent_runs:
-                        if run.draft_title and commit.sha in commit.message:
-                            commit_data["triggered_announcement"] = True
-                            commit_data["announcement_title"] = run.draft_title
-                            commit_data["announcement_timestamp"] = run.timestamp
-                            break
-                
-                commits_data.append(commit_data)
-            
-            return web.json_response({
-                "commits": commits_data,
-                "total": len(commits_data),
-                "player_facing_count": sum(1 for c in commits_data if c["is_player_facing"]),
-                "announcement_count": sum(1 for c in commits_data if c["triggered_announcement"])
-            })
-        
-        except Exception as e:
-            logger.error(f"Failed to fetch commits: {e}", exc_info=True)
-            return web.json_response({"error": str(e), "commits": []}, status=500)
-    
-    # Test Announcement API
-    
-    async def handle_test_announcement(self, request: web.Request) -> web.Response:
-        """Create and send a test announcement."""
+            parser = GitParser(rr)
+            commits = parser.get_player_facing_commits(since_tag=since_tag)
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        # Convert dataclass commits to JSON-safe dicts
+        response_commits = []
+        for c in commits:
+            d = asdict(c)
+            d["date"] = c.date.isoformat()
+            d["screenshot_path"] = str(c.screenshot_path) if c.screenshot_path else None
+            response_commits.append(d)
+        return _json_response({"commits": response_commits})
+
+    async def generate(request: web.Request) -> web.Response:
+        payload = await _read_json(request)
+        rr, config_path_local, _ = _ctx(request)
+
+        since_tag = payload.get("since_tag") or None
+        dry_run = bool(payload.get("dry_run", False))
+        selected_shas = payload.get("commit_shas")
+        if selected_shas is not None and not isinstance(selected_shas, list):
+            return _json_response({"error": "commit_shas must be a list"}, status=400)
+
+        screenshot_path = payload.get("screenshot_path")
+        if screenshot_path is not None and not isinstance(screenshot_path, str):
+            return _json_response({"error": "screenshot_path must be a string"}, status=400)
+        crop_mode = payload.get("crop_mode") or "smart"
+        if not isinstance(crop_mode, str):
+            return _json_response({"error": "crop_mode must be a string"}, status=400)
+        with_logo = payload.get("with_logo")
+        with_logo = True if with_logo is None else bool(with_logo)
+
+        from .git_parser import GitParser
+        from .main import WishlistOpsOrchestrator
+
+        try:
+            parser = GitParser(rr)
+            git_commits = parser.get_player_facing_commits(since_tag=since_tag)
+            if selected_shas:
+                wanted = {str(s)[:8] for s in selected_shas if isinstance(s, str)}
+                git_commits = [c for c in git_commits if str(c.sha)[:8] in wanted]
+        except Exception as exc:
+            return _json_response({"error": f"Failed to load commits: {exc}"}, status=500)
+
+        if not git_commits:
+            return _json_response({"error": "No commits selected/found"}, status=400)
+
+        # Convert to orchestrator's Pydantic Commit model
+        try:
+            model_commits = [_convert_git_commit(c) for c in git_commits]
+        except Exception as exc:
+            return _json_response({"error": f"Failed to convert commits: {exc}"}, status=500)
+
+        try:
+            orch = WishlistOpsOrchestrator(config_path_local, dry_run=dry_run)
+        except Exception as exc:
+            return _json_response({"error": f"Failed to initialize orchestrator: {exc}"}, status=400)
+
+        try:
+            async with orch.ai:
+                draft = await orch._generate_announcement(model_commits)
+                draft = await orch._filter_content(draft)
+                if orch.config.branding and orch.compositor:
+                    draft = await orch._create_banner(
+                        draft,
+                        model_commits,
+                        screenshot_override=screenshot_path,
+                        crop_mode=crop_mode,
+                        with_logo=with_logo,
+                    )
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        return _json_response({
+            "draft": {
+                "title": draft.title,
+                "body": draft.body,
+                "banner_path": getattr(draft, "banner_path", None),
+                "screenshot_used": getattr(draft, "screenshot_used", None),
+                "screenshot_source": getattr(draft, "screenshot_source", None),
+                "banner_url": None,
+                "created_at": getattr(draft, "created_at", datetime.now().isoformat()),
+            }
+        })
+
+    async def get_file(request: web.Request) -> web.StreamResponse:
+        rr, _, _ = _ctx(request)
+        rel = request.match_info.get("rel", "")
+        if not rel:
+            return web.Response(text="Not found", status=404)
+
+        # Only allow serving from whitelisted directories.
+        candidate = (rr / rel).resolve()
+        if not _is_safe_file(rr, candidate) or not candidate.exists():
+            return web.Response(text="Not found", status=404)
+
+        return web.FileResponse(candidate)
+
+    async def send_to_discord(request: web.Request) -> web.Response:
+        payload = await _read_json(request)
+        rr, config_path_local, _ = _ctx(request)
+
+        draft = payload.get("draft")
+        if not isinstance(draft, dict):
+            return _json_response({"error": "draft must be an object"}, status=400)
+
+        title = str(draft.get("title") or "").strip()
+        body = str(draft.get("body") or "").strip()
+        banner_path = draft.get("banner_path")
+        banner_url = draft.get("banner_url")
+        if not title or not body:
+            return _json_response({"error": "draft.title and draft.body required"}, status=400)
+
+        # Validate/normalize banner_path (optional) so Discord attachments actually work.
+        normalized_banner_path: Optional[str] = None
+        if banner_path is not None:
+            if not isinstance(banner_path, str):
+                return _json_response({"error": "draft.banner_path must be a string"}, status=400)
+            bp = banner_path.strip()
+            if bp:
+                candidate = Path(bp)
+                if not candidate.is_absolute():
+                    candidate = (rr / candidate).resolve()
+                else:
+                    candidate = candidate.resolve()
+
+                if not _is_safe_file(rr, candidate):
+                    return _json_response({"error": "banner_path is not in an allowed folder"}, status=400)
+                if not candidate.exists():
+                    return _json_response({"error": f"banner_path does not exist: {candidate}"}, status=400)
+                normalized_banner_path = str(candidate)
+
         try:
             from .discord_notifier import DiscordNotifier
+            from .state_manager import StateManager
             from .models import AnnouncementDraft
-            
-            data = await request.json()
-            title = data.get('title', '')
-            body = data.get('body', '')
-            
-            if not title or not body:
-                return web.json_response({"error": "Title and body required"}, status=400)
-            
-            # Create draft
-            draft = AnnouncementDraft(
+
+            cfg_json = _safe_config_for_client(config_path_local)
+            steam_app_id = str((cfg_json.get("steam") or {}).get("app_id") or "")
+            game_name = str((cfg_json.get("steam") or {}).get("app_name") or "")
+            webhook_url = _get_env_value(rr, "DISCORD_WEBHOOK_URL")
+            notifier = DiscordNotifier(webhook_url, dry_run=False)
+            ok = await notifier.send_approval_request(
                 title=title,
                 body=body,
-                created_at=datetime.now().isoformat()
+                banner_url=banner_url,
+                banner_path=normalized_banner_path,
+                game_name=game_name or None,
+                tag=None,
+                steam_app_id=steam_app_id or None,
             )
-            
-            # Send to Discord if configured
-            discord_sent = False
-            if self.config and hasattr(self.config, 'discord_webhook_url'):
-                notifier = DiscordNotifier(self.config.discord_webhook_url)
+
+            # Persist draft as "last run" for dashboard stats.
+            sm = StateManager(config_path_local.parent / "state.json")
+            sm.update_last_run(
+                draft=AnnouncementDraft(
+                    title=title,
+                    body=body,
+                    banner_url=banner_url,
+                    banner_path=normalized_banner_path,
+                    created_at=datetime.now().isoformat(),
+                ),
+                status="success" if ok else "skipped",
+            )
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        return _json_response({"ok": True})
+
+    async def upload(request: web.Request) -> web.Response:
+        rr, config_path_local, _ = _ctx(request)
+
+        reader = await request.multipart()
+        kind = request.match_info.get("kind")
+        if kind not in {"logo", "screenshot"}:
+            return _json_response({"error": "Invalid upload kind"}, status=400)
+
+        field = await reader.next()
+        if not field or field.name != "file":
+            return _json_response({"error": "Expected multipart field 'file'"}, status=400)
+
+        filename = (field.filename or "upload").strip()
+        ext = Path(filename).suffix.lower()
+        if ext not in {".png", ".jpg", ".jpeg", ".webp"}:
+            return _json_response({"error": "Unsupported file type"}, status=400)
+
+        data = await field.read(decode=False)
+        if not data:
+            return _json_response({"error": "Empty file"}, status=400)
+
+        if kind == "logo":
+            out_dir = rr / "wishlistops" / "assets"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"logo{ext}"
+        else:
+            out_dir = rr / "screenshots"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_path = out_dir / f"screenshot_{stamp}{ext}"
+
+        try:
+            out_path.write_bytes(data)
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        # Update config logo_path if uploading a logo.
+        if kind == "logo":
+            cfg = _safe_config_for_client(config_path_local)
+            if isinstance(cfg, dict):
+                branding = cfg.get("branding") if isinstance(cfg.get("branding"), dict) else {}
+                branding["logo_path"] = str(out_path.relative_to(rr)).replace("\\", "/")
+                cfg["branding"] = branding
                 try:
-                    await notifier.send_approval_request(
-                        title=draft.title,
-                        body=draft.body,
-                        game_name=getattr(self.config.steam, 'app_name', 'Test Game'),
-                        tag="manual-test",
-                        steam_app_id=getattr(self.config.steam, 'app_id', None)
-                    )
-                    discord_sent = True
-                except Exception as e:
-                    logger.warning(f"Failed to send to Discord: {e}")
-            
-            # Generate Steam URL (manual posting required)
-            steam_url = None
-            if self.config and hasattr(self.config, 'steam'):
-                app_id = getattr(self.config.steam, 'app_id', None)
-                if app_id:
-                    steam_url = f"https://partner.steamgames.com/apps/landing/{app_id}"
-            
-            return web.json_response({
-                "success": True,
-                "draft": {
-                    "title": draft.title,
-                    "body": draft.body,
-                    "created_at": draft.created_at
-                },
-                "discord_sent": discord_sent,
-                "steam_url": steam_url,
-                "note": "Steam has no public posting API. Visit the Steam URL to manually publish."
-            })
-        
-        except Exception as e:
-            logger.error(f"Failed to create test announcement: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-    
-    async def handle_export_announcement(self, request: web.Request) -> web.Response:
-        """Export announcement as downloadable text file."""
-        run_id = request.match_info.get('run_id')
-        
-        if not run_id:
-            return web.json_response({"error": "Run ID required"}, status=400)
-        
+                    from .config_manager import save_config as save_config_file
+                    save_config_file(config_path_local, cfg)
+                except Exception:
+                    # Don't fail the upload if config update fails.
+                    pass
+
+        return _json_response({"ok": True, "path": str(out_path.relative_to(rr)).replace("\\", "/")})
+
+    async def discord_test(request: web.Request) -> web.Response:
+        """Send an explicit, opt-in test message to the configured Discord webhook."""
+        payload = await _read_json(request)
+        rr, config_path_local, _ = _ctx(request)
+
+        message = payload.get("message")
+        if message is not None and not isinstance(message, str):
+            return _json_response({"error": "message must be a string"}, status=400)
+
         try:
-            # Load state to find the announcement
-            state_manager = StateManager()
-            runs = state_manager.load_recent_runs(limit=100)
-            
-            # Find the specific run
-            target_run = None
-            for run in runs:
-                if run.id == run_id:
-                    target_run = run
-                    break
-            
-            if not target_run or not target_run.draft:
-                return web.json_response({"error": "Announcement not found"}, status=404)
-            
-            # Format announcement text
-            announcement_text = f"{target_run.draft.title}\n\n{target_run.draft.body}"
-            
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"announcement_{timestamp}.txt"
-            
-            # Return as downloadable file
-            return web.Response(
-                body=announcement_text.encode('utf-8'),
-                headers={
-                    'Content-Type': 'text/plain; charset=utf-8',
-                    'Content-Disposition': f'attachment; filename="{filename}"'
-                }
+            from .discord_notifier import DiscordNotifier
+
+            # Do NOT require Google AI to be configured just to test Discord.
+            webhook_url = _get_env_value(rr, "DISCORD_WEBHOOK_URL")
+            notifier = DiscordNotifier(webhook_url, dry_run=False)
+            await notifier.send_test_message(
+                message
+                or "If you can read this, your Discord webhook is configured correctly."
             )
-        
-        except Exception as e:
-            logger.error(f"Failed to export announcement: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-    
-    async def handle_export_banner(self, request: web.Request) -> web.Response:
-        """Export banner image as downloadable file."""
-        filename = request.match_info.get('filename')
-        
-        if not filename:
-            return web.json_response({"error": "Filename required"}, status=400)
-        
-        try:
-            # Look for banner in banners directory
-            banners_dir = Path("wishlistops/banners")
-            banner_path = banners_dir / filename
-            
-            if not banner_path.exists():
-                return web.json_response({"error": "Banner not found"}, status=404)
-            
-            # Read banner file
-            banner_bytes = banner_path.read_bytes()
-            
-            # Return as downloadable file
-            return web.Response(
-                body=banner_bytes,
-                headers={
-                    'Content-Type': 'image/png',
-                    'Content-Disposition': f'attachment; filename="{filename}"'
-                }
-            )
-        
-        except Exception as e:
-            logger.error(f"Failed to export banner: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-    
-    async def handle_upload_logo(self, request: web.Request) -> web.Response:
-        """Handle logo image upload."""
-        try:
-            reader = await request.multipart()
-            
-            # Read the file field
-            field = await reader.next()
-            if field.name != 'logo':
-                return web.json_response({"error": "Expected 'logo' field"}, status=400)
-            
-            # Read file data
-            filename = field.filename
-            if not filename:
-                return web.json_response({"error": "No filename provided"}, status=400)
-            
-            # Validate file type
-            if not filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                return web.json_response({
-                    "error": "Invalid file type. Please upload PNG or JPEG"
-                }, status=400)
-            
-            # Read file content
-            size = 0
-            content = bytearray()
-            while True:
-                chunk = await field.read_chunk()
-                if not chunk:
-                    break
-                size += len(chunk)
-                content.extend(chunk)
-                
-                # Limit file size to 5MB
-                if size > 5 * 1024 * 1024:
-                    return web.json_response({
-                        "error": "File too large. Maximum size is 5MB"
-                    }, status=400)
-            
-            # Save logo
-            logo_dir = self.config_path.parent / "assets"
-            logo_dir.mkdir(exist_ok=True)
-            logo_path = logo_dir / "logo.png"
-            logo_path.write_bytes(content)
-            
-            logger.info(f"Logo uploaded: {logo_path} ({size} bytes)")
-            
-            return web.json_response({
-                "success": True,
-                "path": str(logo_path),
-                "size": size
-            })
-        
-        except Exception as e:
-            logger.error(f"Failed to upload logo: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-    
-    async def handle_upload_banner(self, request: web.Request) -> web.Response:
-        """Handle banner template upload."""
-        try:
-            reader = await request.multipart()
-            
-            # Read the file field
-            field = await reader.next()
-            if field.name != 'banner':
-                return web.json_response({"error": "Expected 'banner' field"}, status=400)
-            
-            # Read file data
-            filename = field.filename
-            if not filename:
-                return web.json_response({"error": "No filename provided"}, status=400)
-            
-            # Validate file type
-            if not filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                return web.json_response({
-                    "error": "Invalid file type. Please upload PNG or JPEG"
-                }, status=400)
-            
-            # Read file content
-            size = 0
-            content = bytearray()
-            while True:
-                chunk = await field.read_chunk()
-                if not chunk:
-                    break
-                size += len(chunk)
-                content.extend(chunk)
-                
-                # Limit file size to 10MB
-                if size > 10 * 1024 * 1024:
-                    return web.json_response({
-                        "error": "File too large. Maximum size is 10MB"
-                    }, status=400)
-            
-            # Save banner template
-            banner_dir = self.config_path.parent / "assets"
-            banner_dir.mkdir(exist_ok=True)
-            banner_path = banner_dir / "banner_template.png"
-            banner_path.write_bytes(content)
-            
-            logger.info(f"Banner template uploaded: {banner_path} ({size} bytes)")
-            
-            return web.json_response({
-                "success": True,
-                "path": str(banner_path),
-                "size": size
-            })
-        
-        except Exception as e:
-            logger.error(f"Failed to upload banner: {e}", exc_info=True)
-            return web.json_response({"error": str(e)}, status=500)
-    
-    # Helper methods
-    
-    async def _fetch_github_repos(self, token: str) -> list:
-        """Fetch user's GitHub repositories."""
-        async with aiohttp.ClientSession() as client:
-            async with client.get(
-                "https://api.github.com/user/repos",
-                headers={
-                    "Authorization": f"token {token}",
-                    "Accept": "application/vnd.github.v3+json"
-                },
-                params={"sort": "updated", "per_page": 100}
-            ) as resp:
-                if resp.status != 200:
-                    raise Exception(f"GitHub API error: {resp.status}")
-                
-                repos = await resp.json()
-                return [
-                    {
-                        "name": repo["name"],
-                        "full_name": repo["full_name"],
-                        "description": repo.get("description", ""),
-                        "url": repo["html_url"],
-                        "updated_at": repo["updated_at"]
-                    }
-                    for repo in repos
-                ]
-    
-    async def start(self):
-        """Start the web server."""
-        runner = web.AppRunner(self.app)
-        await runner.setup()
-        site = web.TCPSite(runner, HOST, PORT)
-        await site.start()
-        
-        url = f"{BASE_URL}/"
-        logger.info(f"WishlistOps dashboard running at {url}")
-        print(f"\n{'='*60}")
-        print(f"🎮 WishlistOps Dashboard")
-        print(f"{'='*60}")
-        print(f"\n✨ Open your browser at: {url}")
-        print(f"\n   - Setup wizard: {url}setup")
-        print(f"   - Monitor: {url}monitor")
-        print(f"   - Docs: {url}docs")
-        print(f"\n{'='*60}\n")
-        
-        # Auto-open browser
-        webbrowser.open(url)
-        
-        # Keep running
-        try:
-            await asyncio.Event().wait()
-        except KeyboardInterrupt:
-            logger.info("Shutting down server...")
-            await runner.cleanup()
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
 
+        return _json_response({"ok": True})
 
-def run_server(config_path: Optional[Path] = None):
-    """Run the WishlistOps web server."""
-    if config_path is None:
-        config_path = Path("wishlistops/config.json")
-    
-    server = WishlistOpsWebServer(config_path)
-    asyncio.run(server.start())
+    async def google_models(request: web.Request) -> web.Response:
+        """List Gemini models available for the configured API key.
 
+        Returns only models that support generateContent.
+        """
+        rr, _, _ = _ctx(request)
+        api_key = _get_env_value(rr, "GOOGLE_AI_KEY")
+        if not api_key:
+            return _json_response({"error": "GOOGLE_AI_KEY not configured"}, status=400)
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    run_server()
+        try:
+            from .ai_client import GeminiClient
+            from .models import AIConfig
+
+            # Use config defaults; only list models.
+            cfg = AIConfig()
+            async with GeminiClient(api_key, cfg) as client:
+                models = await client.list_generate_content_models()
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        return _json_response({"ok": True, "models": models})
+
+    def _list_screenshot_files(rr: Path) -> list[dict[str, Any]]:
+        roots = [rr / "screenshots", rr / "wishlistops" / "screenshots", rr / "promo"]
+        allowed_ext = {".png", ".jpg", ".jpeg", ".webp"}
+
+        items: list[dict[str, Any]] = []
+        for root in roots:
+            if not root.exists():
+                continue
+            for path in root.rglob("*"):
+                if path.is_dir() or path.suffix.lower() not in allowed_ext:
+                    continue
+                try:
+                    st = path.stat()
+                    rel = str(path.relative_to(rr)).replace("\\", "/")
+                    items.append({"path": rel, "mtime": st.st_mtime, "size": st.st_size})
+                except OSError:
+                    continue
+
+        items.sort(key=lambda i: float(i.get("mtime") or 0.0), reverse=True)
+        return items
+
+    async def list_screenshots(request: web.Request) -> web.Response:
+        rr, _, _ = _ctx(request)
+        return _json_response({"ok": True, "screenshots": _list_screenshot_files(rr)})
+
+    async def banner_preview(request: web.Request) -> web.Response:
+        """Generate a local banner preview from a screenshot with crop options and optional logo."""
+        payload = await _read_json(request)
+        rr, config_path_local, _ = _ctx(request)
+
+        screenshot_path = payload.get("screenshot_path")
+        if not isinstance(screenshot_path, str) or not screenshot_path.strip():
+            return _json_response({"error": "screenshot_path required"}, status=400)
+
+        crop_mode = payload.get("crop_mode") or "smart"
+        if not isinstance(crop_mode, str):
+            return _json_response({"error": "crop_mode must be a string"}, status=400)
+
+        with_logo = payload.get("with_logo")
+        with_logo = True if with_logo is None else bool(with_logo)
+
+        candidate = (rr / screenshot_path).resolve()
+        if not _is_safe_file(rr, candidate) or not candidate.exists():
+            return _json_response({"error": "Screenshot not found or not allowed"}, status=404)
+
+        try:
+            from PIL import Image
+            from io import BytesIO
+
+            from .image_compositor import ImageCompositor
+            from .models import BrandingConfig
+
+            # Load config JSON (no secret validation; dashboard-only).
+            cfg_json = _safe_config_for_client(config_path_local)
+            branding_json = cfg_json.get("branding") if isinstance(cfg_json.get("branding"), dict) else None
+            branding = BrandingConfig(**branding_json) if branding_json else None
+
+            def crop_to_ratio(img: Image.Image, ratio: float, mode: str) -> Image.Image:
+                w, h = img.size
+                current = w / h
+                if abs(current - ratio) < 1e-3:
+                    return img
+
+                if current > ratio:
+                    new_w = int(h * ratio)
+                    if mode == "left":
+                        x0 = 0
+                    elif mode == "right":
+                        x0 = w - new_w
+                    elif mode == "thirds":
+                        x0 = max(0, min(w - new_w, (w - new_w) // 3))
+                    else:
+                        x0 = (w - new_w) // 2
+                    return img.crop((x0, 0, x0 + new_w, h))
+
+                new_h = int(w / ratio)
+                if mode == "top":
+                    y0 = 0
+                elif mode == "bottom":
+                    y0 = h - new_h
+                elif mode == "thirds":
+                    y0 = max(0, min(h - new_h, (h - new_h) // 3))
+                else:
+                    y0 = (h - new_h) // 2
+                return img.crop((0, y0, w, y0 + new_h))
+
+            previews_dir = rr / "wishlistops" / "previews"
+            previews_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_rel = f"wishlistops/previews/preview_{stamp}.png"
+            out_path = (rr / out_rel).resolve()
+
+            # Use the compositor pipeline when available so preview matches production banner.
+            if branding:
+                compositor = ImageCompositor(branding)
+                base_bytes = candidate.read_bytes()
+
+                if crop_mode and crop_mode.lower() != "smart":
+                    img = Image.open(BytesIO(base_bytes))
+                    if img.mode not in {"RGB", "RGBA"}:
+                        img = img.convert("RGBA")
+                    img = crop_to_ratio(img, compositor.STEAM_WIDTH / compositor.STEAM_HEIGHT, crop_mode.lower())
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    base_bytes = buf.getvalue()
+
+                compositor.composite_logo(
+                    base_image_data=base_bytes,
+                    logo_path=Path(branding.logo_path) if (with_logo and branding.logo_path) else None,
+                    output_path=out_path,
+                )
+            else:
+                # Minimal fallback if branding is absent.
+                img = Image.open(candidate)
+                img = img.convert("RGBA") if img.mode != "RGBA" else img
+                if crop_mode and crop_mode.lower() != "smart":
+                    img = crop_to_ratio(img, 800 / 450, crop_mode.lower())
+                img = img.resize((800, 450), Image.Resampling.LANCZOS)
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                out_path.write_bytes(buf.getvalue())
+
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=500)
+
+        return _json_response({"ok": True, "preview_path": out_rel})
+
+    async def projects_list(request: web.Request) -> web.Response:
+        pm: ProjectManager = request.app["project_manager"]
+        return _json_response({"ok": True, "active_id": pm.active_id(), "projects": pm.list_projects()})
+
+    async def projects_upsert(request: web.Request) -> web.Response:
+        pm: ProjectManager = request.app["project_manager"]
+        payload = await _read_json(request)
+        proj = payload.get("project")
+        if not isinstance(proj, dict):
+            return _json_response({"error": "project must be an object"}, status=400)
+        try:
+            saved = pm.upsert(proj)
+        except Exception as exc:
+            return _json_response({"error": str(exc)}, status=400)
+        return _json_response({"ok": True, "project": saved, "active_id": pm.active_id(), "projects": pm.list_projects()})
+
+    async def projects_select(request: web.Request) -> web.Response:
+        pm: ProjectManager = request.app["project_manager"]
+        payload = await _read_json(request)
+        pid = payload.get("id")
+        if not isinstance(pid, str) or not pid.strip():
+            return _json_response({"error": "id is required"}, status=400)
+        ok = pm.select(pid)
+        if not ok:
+            return _json_response({"error": "project not found"}, status=404)
+        return _json_response({"ok": True, "active_id": pm.active_id()})
+
+    async def projects_delete(request: web.Request) -> web.Response:
+        pm: ProjectManager = request.app["project_manager"]
+        payload = await _read_json(request)
+        pid = payload.get("id")
+        if not isinstance(pid, str) or not pid.strip():
+            return _json_response({"error": "id is required"}, status=400)
+        ok = pm.delete(pid)
+        if not ok:
+            return _json_response({"error": "project not found"}, status=404)
+        return _json_response({"ok": True, "active_id": pm.active_id(), "projects": pm.list_projects()})
+
+    app.router.add_get("/", index)
+    app.router.add_get("/docs", docs)
+    app.router.add_get("/api/health", health)
+    app.router.add_get("/api/config", get_config)
+    app.router.add_post("/api/config", save_config)
+    app.router.add_get("/api/env", get_env)
+    app.router.add_post("/api/env", save_env)
+    app.router.add_get("/api/state", get_state)
+    app.router.add_get("/api/commits", get_commits)
+    app.router.add_post("/api/generate", generate)
+    app.router.add_post("/api/send", send_to_discord)
+    app.router.add_post("/api/upload/{kind}", upload)
+    app.router.add_post("/api/discord/test", discord_test)
+    app.router.add_get("/api/google/models", google_models)
+    app.router.add_get("/api/screenshots", list_screenshots)
+    app.router.add_post("/api/banner/preview", banner_preview)
+    app.router.add_get("/api/projects", projects_list)
+    app.router.add_post("/api/projects", projects_upsert)
+    app.router.add_post("/api/projects/select", projects_select)
+    app.router.add_post("/api/projects/delete", projects_delete)
+    app.router.add_get("/files/{rel:.*}", get_file)
+
+    # Dashboard may link to /setup, /commits, etc. Serve index for these routes too.
+    for route in ("/setup", "/commits", "/monitor", "/test", "/settings"):
+        app.router.add_get(route, index)
+
+    guides_dir = dashboard_dir / "guides"
+    if guides_dir.exists():
+        app.router.add_static("/guides/", path=guides_dir, name="guides")
+
+    if static_dir.exists():
+        # aiohttp will infer content types poorly for some extensions; pre-register common ones.
+        mimetypes.add_type("application/javascript", ".js")
+        app.router.add_static("/static/", path=static_dir, name="static")
+
+    web.run_app(app, host="127.0.0.1", port=port)
