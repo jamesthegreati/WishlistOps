@@ -195,8 +195,10 @@ class LlmAPI {
     }
 
     async fetchModels() {
-        const url = `${this.baseUrl}/v1beta/models?key=${encodeURIComponent(this.apiKey)}`;
-        const response = await fetch(url);
+        const url = `${this.baseUrl}/v1beta/models`;
+        const response = await fetch(url, {
+            headers: { 'x-goog-api-key': this.apiKey }
+        });
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.error?.message || `Failed to fetch models: ${response.status}`);
@@ -210,10 +212,13 @@ class LlmAPI {
 
     async generateContent(model, prompt, temperature = 0.7) {
         const modelName = model.startsWith('models/') ? model : `models/${model}`;
-        const url = `${this.baseUrl}/v1beta/${modelName}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+        const url = `${this.baseUrl}/v1beta/${modelName}:generateContent`;
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': this.apiKey
+            },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { temperature }
@@ -622,7 +627,9 @@ class UIManager {
         });
 
         // Generate announcement
-        this.elements.generateBtn.addEventListener('click', () => this.generateAnnouncement());
+        this.elements.generateBtn.addEventListener('click', () => {
+            this.generateAnnouncement().catch(err => this.showStatus(`Error: ${err.message}`, 'error'));
+        });
 
         // Copy to clipboard
         document.getElementById('copy-btn').addEventListener('click', () => {
@@ -683,7 +690,7 @@ class UIManager {
         document.getElementById('wizard-generate').addEventListener('click', () => {
             state.setOnboardingComplete(true);
             this.showDashboard();
-            this.generateAnnouncement();
+            this.generateAnnouncement().catch(err => this.showStatus(`Error: ${err.message}`, 'error'));
         });
     }
 
@@ -1078,7 +1085,8 @@ ${commitMessages.map(m => `- ${m}`).join('\n')}
 
 Write the announcement now:`;
 
-                announcement = await llm.generateContent(state.llmModel, prompt, parseFloat(this.elements.temperature.value));
+                const temp = parseFloat(this.elements.temperature.value);
+                announcement = await llm.generateContent(state.llmModel, prompt, isNaN(temp) ? 0.7 : temp);
             } else {
                 // Fallback: format locally when no LLM is configured
                 const features = commitMessages.map(m => `• ${m}`).join('\n');
