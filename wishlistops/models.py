@@ -37,15 +37,6 @@ class LogoPosition(str, Enum):
     BOTTOM_RIGHT = "bottom-right"
 
 
-class LogoPosition(str, Enum):
-    """Valid logo positions on generated banners."""
-    TOP_LEFT = "top-left"
-    TOP_RIGHT = "top-right"
-    CENTER = "center"
-    BOTTOM_LEFT = "bottom-left"
-    BOTTOM_RIGHT = "bottom-right"
-
-
 class SteamConfig(BaseModel):
     """Steam platform configuration."""
     model_config = ConfigDict(extra='forbid')
@@ -60,6 +51,11 @@ class SteamConfig(BaseModel):
         description="Game name as displayed on Steam",
         min_length=1,
         max_length=255
+    )
+    steam_id: Optional[str] = Field(
+        default=None,
+        description="Steam User ID (17-digit SteamID64) for fetching owned games",
+        pattern=r"^\d{17}$"
     )
     
     @field_validator('app_id')

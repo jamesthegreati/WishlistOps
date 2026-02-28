@@ -6,7 +6,11 @@
   },
   "branding": {
     "art_style": "pixel art fantasy with vibrant colors and whimsical characters",
-    "color_palette": ["#4A90E2", "#F5A623", "#7ED321"],
+    "color_palette": [
+      "#4A90E2",
+      "#F5A623",
+      "#7ED321"
+    ],
     "logo_position": "bottom-right",
     "logo_size_percent": 25,
     "logo_path": "wishlistops/assets/logo.png",
@@ -37,7 +41,7 @@
     "require_manual_approval": true
   },
   "ai": {
-    "model_text": "gemini-1.5-pro",
+    "model_text": "gemini-2.5-flash-lite",
     "model_image": "gemini-2.5-flash-image",
     "temperature": 0.7,
     "max_retries": 3,

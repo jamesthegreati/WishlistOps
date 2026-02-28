@@ -1,22 +1,15 @@
-"""
-WishlistOps - Automated Steam marketing for indie game developers.
+"""WishlistOps package.
 
-This package provides automation for generating Steam announcements from Git commits,
-using AI for content generation and human approval via Discord.
+WishlistOps drafts Steam announcements from Git commits and prepares user-provided
+images for posting. It does *not* generate images.
 
-Main components:
-- main.py: Orchestrator coordinating the workflow
-- config_manager.py: Configuration loading and validation
-- git_parser.py: Git commit parsing and classification
-- ai_client.py: Google Gemini API wrapper
-- content_filter.py: Anti-slop quality filtering
-- image_compositor.py: Banner image composition
-- discord_notifier.py: Discord webhook notifications
-- state_manager.py: State persistence
-- models.py: Pydantic data models
-
-Architecture: See 04_WishlistOps_System_Architecture_Diagrams.md
+Keep this module lightweight: avoid importing optional / non-core modules at import
+time so `import wishlistops` never fails.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "WishlistOps Team"
+
+from .main import WishlistOpsOrchestrator, WorkflowError
+
+__all__ = ["WishlistOpsOrchestrator", "WorkflowError"]

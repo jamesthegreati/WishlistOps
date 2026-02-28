@@ -11,6 +11,7 @@ API Specs: See Section 11 for detailed API integration
 import asyncio
 import base64
 import logging
+import json
 from dataclasses import dataclass
 from typing import Optional, Any
 from pathlib import Path
@@ -80,6 +81,35 @@ class GeminiClient:
     """
     
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+    @staticmethod
+    def _normalize_model_name(model_name: str) -> str:
+        """Accept either 'gemini-...' or 'models/gemini-...'; return bare id."""
+        name = (model_name or "").strip()
+        if name.startswith("models/"):
+            return name[len("models/"):]
+        return name
+
+    @staticmethod
+    def _prefer_text_model(model_names: list[str]) -> Optional[str]:
+        """Pick a reasonable default text model from a list of bare model ids."""
+        if not model_names:
+            return None
+
+        # Prefer fast/cheap general-purpose text models if present.
+        preferred_prefixes = [
+            "gemini-2.0-flash",
+            "gemini-2.0-pro",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+        ]
+        for pref in preferred_prefixes:
+            for name in model_names:
+                if name == pref or name.startswith(pref + "-"):
+                    return name
+
+        # Fall back to first sorted to keep deterministic.
+        return sorted(model_names)[0]
     
     def __init__(self, api_key: str, config: AIConfig) -> None:
         """
@@ -179,51 +209,143 @@ class GeminiClient:
                 "parts": [{"text": system_instruction}]
             }
         
-        # Make API call
-        url = f"{self.base_url}/models/{self.config.model_text}:generateContent"
         headers = {
             "Content-Type": "application/json",
-            "x-goog-api-key": self.api_key
+            "x-goog-api-key": self.api_key,
         }
-        
-        try:
+
+        async def _post_with_model(model_text: str) -> TextGenerationResult:
+            model_id = self._normalize_model_name(model_text)
+            url = f"{self.base_url}/models/{model_id}:generateContent"
             async with self.session.post(
                 url,
                 json=payload,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
-                
                 # Handle rate limiting
                 if response.status == 429:
-                    retry_after = response.headers.get('Retry-After', '60')
+                    retry_after = response.headers.get("Retry-After", "60")
                     raise RateLimitError(
                         f"Rate limit exceeded. Retry after {retry_after}s.\n"
                         f"Tip: Reduce frequency or upgrade to paid tier."
                     )
-                
-                # Handle other errors
+
                 if response.status != 200:
                     error_text = await response.text()
                     raise GenerationError(
                         f"API error (status {response.status}): {error_text}"
                     )
-                
-                # Parse response
+
                 data = await response.json()
                 result = self._parse_text_response(data)
-                
-                logger.info("Text generation successful", extra={
-                    "title_length": len(result.title),
-                    "body_length": len(result.body)
-                })
-                
+                logger.info(
+                    "Text generation successful",
+                    extra={"title_length": len(result.title), "body_length": len(result.body)},
+                )
                 return result
+
+        try:
+            try:
+                return await _post_with_model(self.config.model_text)
+            except GenerationError as first_error:
+                # If the configured model is unavailable, try to auto-pick a supported model.
+                msg = str(first_error)
+                if "status 404" not in msg:
+                    raise
+                if "Call ListModels" not in msg and "ListModels" not in msg:
+                    raise
+
+                try:
+                    models = await self.list_generate_content_models()
+                except Exception:
+                    raise first_error
+
+                choices = [m.get("name") for m in models if isinstance(m, dict) and m.get("name")]
+                picked = self._prefer_text_model([self._normalize_model_name(c) for c in choices if isinstance(c, str)])
+                if not picked:
+                    raise GenerationError(
+                        "No generateContent-capable models are available for this API key. "
+                        "Call ListModels and choose a supported model."
+                    )
+
+                logger.warning(
+                    "Configured text model not available; falling back",
+                    extra={"from": self.config.model_text, "to": picked},
+                )
+                self.config.model_text = picked
+                return await _post_with_model(picked)
         
         except asyncio.TimeoutError as e:
             raise AIError("API request timed out after 30s") from e
         except aiohttp.ClientError as e:
             raise AIError(f"Network error: {e}") from e
+
+    async def list_models(self) -> list[dict[str, Any]]:
+        """List models available to the current API key (Gemini v1beta ListModels)."""
+        if not self.session:
+            raise AIError("Client not initialized. Use 'async with' context manager.")
+
+        url = f"{self.base_url}/models"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
+
+        models: list[dict[str, Any]] = []
+        page_token: Optional[str] = None
+
+        while True:
+            params = {}
+            if page_token:
+                params["pageToken"] = page_token
+
+            async with self.session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise GenerationError(f"API error (status {response.status}): {error_text}")
+
+                data = await response.json()
+                page_models = data.get("models", [])
+                if isinstance(page_models, list):
+                    for m in page_models:
+                        if isinstance(m, dict):
+                            models.append(m)
+
+                page_token = data.get("nextPageToken")
+                if not page_token:
+                    break
+
+        return models
+
+    async def list_generate_content_models(self) -> list[dict[str, Any]]:
+        """Return models that support generateContent, with normalized bare ids in 'name'."""
+        raw = await self.list_models()
+        supported: list[dict[str, Any]] = []
+        for model in raw:
+            methods = model.get("supportedGenerationMethods") or model.get("supported_methods") or []
+            if not isinstance(methods, list):
+                methods = []
+            if "generateContent" not in methods:
+                continue
+
+            name = model.get("name") or ""
+            supported.append(
+                {
+                    "name": self._normalize_model_name(str(name)),
+                    "display_name": model.get("displayName") or model.get("display_name"),
+                    "description": model.get("description"),
+                    "supported_methods": methods,
+                }
+            )
+
+        supported.sort(key=lambda m: str(m.get("name") or ""))
+        return supported
     
     def _parse_text_response(self, data: dict) -> TextGenerationResult:
         """
@@ -252,15 +374,62 @@ class GeminiClient:
             text = parts[0].get('text', '')
             if not text:
                 raise GenerationError("Empty text in response")
+
+            def _strip_code_fences(raw: str) -> str:
+                s = raw.strip()
+                if not s.startswith("```"):
+                    return s
+                lines_local = s.splitlines()
+                if not lines_local:
+                    return s
+                if not lines_local[0].startswith("```"):
+                    return s
+                # Drop opening fence (``` or ```json)
+                body_lines = lines_local[1:]
+                # Drop trailing fence if present
+                if body_lines and body_lines[-1].strip() == "```":
+                    body_lines = body_lines[:-1]
+                return "\n".join(body_lines).strip()
+
+            def _try_parse_json_payload(raw: str) -> Optional[dict[str, Any]]:
+                s = _strip_code_fences(raw)
+                s2 = s.strip()
+                if not (s2.startswith("{") and s2.endswith("}")):
+                    return None
+                try:
+                    parsed = json.loads(s2)
+                except Exception:
+                    return None
+                if isinstance(parsed, dict):
+                    return parsed
+                return None
+
+            parsed_json = _try_parse_json_payload(text)
+            if parsed_json:
+                title_json = parsed_json.get("title")
+                body_json = parsed_json.get("body")
+                if isinstance(title_json, str) and isinstance(body_json, str) and title_json.strip() and body_json.strip():
+                    metadata = {
+                        'model': data.get('modelVersion', self.config.model_text),
+                        'finish_reason': (data.get('candidates', [{}])[0].get('finishReason', 'unknown') if isinstance(data.get('candidates', []), list) else 'unknown'),
+                        'safety_ratings': (data.get('candidates', [{}])[0].get('safetyRatings', []) if isinstance(data.get('candidates', []), list) else []),
+                        'parsed_as': 'json',
+                    }
+                    return TextGenerationResult(
+                        title=title_json.strip()[:255],
+                        body=body_json.strip(),
+                        metadata=metadata,
+                    )
             
             # Parse into title and body
             # Expected format: "Title: ...\n\nBody: ..."
-            lines = text.strip().split('\n', 1)
+            text_clean = _strip_code_fences(text)
+            lines = text_clean.strip().split('\n', 1)
             
             if len(lines) < 2:
                 # Fallback: use first line as title, rest as body
                 title = lines[0][:255]  # Max Steam title length
-                body = text
+                body = text_clean
             else:
                 # Extract title (remove "Title:" prefix if present)
                 title = lines[0].replace('Title:', '').strip()[:255]
@@ -348,7 +517,8 @@ class GeminiClient:
         }
         
         # Make API call
-        url = f"{self.base_url}/models/{self.config.model_image}:generateContent"
+        model_id = self._normalize_model_name(self.config.model_image)
+        url = f"{self.base_url}/models/{model_id}:generateContent"
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key

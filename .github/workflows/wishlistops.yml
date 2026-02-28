@@ -133,7 +133,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Build command with optional flags
-          CMD="python -m wishlistops.main --config wishlistops/config.json"
+          CMD="python -m wishlistops.main run --config wishlistops/config.json"
           
           # Add dry-run flag if enabled
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then

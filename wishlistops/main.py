@@ -9,12 +9,15 @@ Production fixes: See 05_WishlistOps_Revised_Architecture.md
 
 Workflow Steps:
 1. Parse Git commits since last run
-2. Generate announcement text using AI
+2. Generate announcement text using AI (drafting only - not creating images)
 3. Filter content for quality (anti-slop)
-4. Generate banner image
-5. Composite game logo
+4. Process user-provided screenshots for Steam banners
+5. Composite game logo onto banner
 6. Send to Discord for approval
 7. Update state for next run
+
+Note: This tool does NOT generate images with AI. All images are provided
+by the user (screenshots, logos, etc.). We only enhance and format them.
 
 Error Handling:
 - API failures retry with exponential backoff
@@ -25,10 +28,11 @@ Error Handling:
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from git.exc import InvalidGitRepositoryError
 
@@ -49,6 +53,28 @@ logging.basicConfig(
     datefmt='%Y-%m-%dT%H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+
+def check_optional_dependencies():
+    """
+    Check for optional ML dependencies and warn user if missing.
+    
+    This provides a helpful message about installing image-enhancement
+    extras if user wants AI upscaling features.
+    """
+    try:
+        import torch
+        import realesrgan
+        logger.info("AI image enhancement available (RealESRGAN)")
+        return True
+    except ImportError:
+        logger.warning(
+            "AI image enhancement not available. "
+            "Using standard quality Pillow-based upscaling. "
+            "For high-quality upscaling, install with: "
+            "pip install wishlistops[image-enhancement]"
+        )
+        return False
 
 
 class WorkflowError(Exception):
@@ -225,6 +251,14 @@ class WishlistOpsOrchestrator:
         if not last_post_dt:
             logger.info("No previous posts found, OK to run")
             return True
+
+        # Be tolerant of older/mocked call sites that return ISO strings.
+        if isinstance(last_post_dt, str):
+            try:
+                last_post_dt = datetime.fromisoformat(last_post_dt)
+            except (ValueError, TypeError):
+                logger.warning("Error parsing last post date string, allowing run", extra={"value": last_post_dt})
+                return True
         
         try:
             # Handle timezone awareness
@@ -307,8 +341,11 @@ class WishlistOpsOrchestrator:
         logger.info("Generating announcement with AI")
         
         try:
-            # Build context from config
-            context = self._build_ai_context(commits)
+            # Fetch Steam game context for better announcements
+            game_context = await self._fetch_game_context()
+            
+            # Build context from config and commits
+            context = self._build_ai_context(commits, game_context)
             
             logger.debug("AI context built", extra={"context_length": len(context)})
             
@@ -317,12 +354,13 @@ class WishlistOpsOrchestrator:
                 prompt=context,
                 temperature=self.config.ai.temperature
             )
-            
-            draft = AnnouncementDraft(
-                title=result['title'],
-                body=result['body'],
-                created_at=datetime.now().isoformat()
-            )
+
+            title = getattr(result, "title", None) or (result.get("title") if isinstance(result, dict) else None)
+            body = getattr(result, "body", None) or (result.get("body") if isinstance(result, dict) else None)
+            if not title or not body:
+                raise WorkflowError("AI client returned unexpected result format")
+
+            draft = AnnouncementDraft(title=title, body=body, created_at=datetime.now().isoformat())
             
             logger.info(
                 "Announcement generated successfully",
@@ -353,17 +391,27 @@ class WishlistOpsOrchestrator:
         try:
             # Check content quality
             result = self.filter.check(draft.body)
-            
-            if not result.passed:
+
+            # Backwards compatibility: some tests/mocks return a plain list of issues.
+            if isinstance(result, list):
+                passed = len(result) == 0
+                issues = result
+                score = 1.0 if passed else 0.0
+            else:
+                passed = bool(getattr(result, "passed", False))
+                issues = list(getattr(result, "issues", []))
+                score = float(getattr(result, "score", 0.0))
+
+            if not passed:
                 logger.warning(
-                    f"Found {len(result.issues)} quality issues: {result.issues}",
-                    extra={"issues": result.issues, "score": result.score}
+                    f"Found {len(issues)} quality issues: {issues}",
+                    extra={"issues": issues, "score": score}
                 )
                 # Regenerate with stricter prompt
-                draft = await self._regenerate_with_fixes(draft, result.issues)
+                draft = await self._regenerate_with_fixes(draft, issues)
                 logger.info("Content regenerated with fixes")
             else:
-                logger.info(f"Content passed quality filter (score: {result.score:.2f})")
+                logger.info(f"Content passed quality filter (score: {score:.2f})")
             
             return draft
             
@@ -411,87 +459,18 @@ Personality: {self.config.voice.personality}
                 prompt=corrective_prompt,
                 temperature=self.config.ai.temperature * 0.8  # Lower temperature for corrections
             )
-            
-            return AnnouncementDraft(
-                title=result['title'],
-                body=result['body'],
-                created_at=datetime.now().isoformat()
-            )
-            
-        except Exception as e:
-            logger.error(f"Error regenerating content: {e}", exc_info=True)
-            # Return original draft if regeneration fails
-            logger.warning("Returning original draft due to regeneration failure")
-            return draft
-    
-    async def _create_banner(self, draft: AnnouncementDraft, commits: list[Commit]) -> AnnouncementDraft:
-        """
-        Generate and composite banner image.
-        
-        Args:
-            draft: Announcement draft to create banner for
-            commits: Commits associated with this announcement
-            
-        Returns:
-            Draft with banner_url populated
-        """
-        logger.info("Generating banner image")
-        
-        try:
-            base_image_bytes = self._load_deterministic_screenshot(commits)
-            if not base_image_bytes:
-                logger.warning("No deterministic screenshot found; skipping banner creation")
-                draft.banner_url = None
-                draft.banner_path = None
-                return draft
-            logger.info("Using deterministic screenshot for banner")
-            
-            # Composite logo if compositor available
-            final_image = base_image_bytes
-            if self.compositor and self.config.branding:
-                logo_path = Path(self.config.branding.logo_path) if self.config.branding.logo_path else None
-                final_image = self.compositor.composite_logo(
-                    base_image_bytes,
-                    logo_path=logo_path
-                )
-                logger.info("Logo composited successfully")
-            
-            # Save and get URL
-            banner_path = self._save_banner(final_image)
-            draft.banner_url = banner_path
-            draft.banner_path = banner_path
-            
-            logger.info(f"Banner saved: {banner_path}")
-            
-            return draft
-            
-        except Exception as e:
-            logger.error(f"Error creating banner: {e}", exc_info=True)
-            # Non-critical error, continue without banner
-            logger.warning("Continuing without banner image")
-            draft.banner_url = None
-            draft.banner_path = None
-            return draft
 
-    def _load_deterministic_screenshot(self, commits: list[Commit]) -> Optional[bytes]:
-        """Return screenshot bytes using explicit or implicit commit attachment."""
-        for commit in commits:
-            screenshot_attr = getattr(commit, "screenshot_path", None)
-            if not screenshot_attr:
-                continue
-            path = Path(str(screenshot_attr))
-            if path.exists():
-                try:
-                    return path.read_bytes()
-                except OSError as exc:
-                    logger.warning("Failed to read screenshot", extra={"path": str(path), "error": str(exc)})
-        fallback = self._find_recent_screenshot()
-        if fallback:
-            try:
-                return fallback.read_bytes()
-            except OSError as exc:
-                logger.warning("Failed to read fallback screenshot", extra={"path": str(fallback), "error": str(exc)})
-        return None
+            title = getattr(result, "title", None) or (result.get("title") if isinstance(result, dict) else None)
+            body = getattr(result, "body", None) or (result.get("body") if isinstance(result, dict) else None)
+            if not title or not body:
+                return draft
+
+            return AnnouncementDraft(title=title, body=body, created_at=datetime.now().isoformat())
+            
+        except Exception as e:
+            logger.error(f"Regeneration failed: {e}", exc_info=True)
+            # Return original draft if regeneration fails
+            return draft
 
     def _find_recent_screenshot(self) -> Optional[Path]:
         search_dirs = [
@@ -546,12 +525,38 @@ Personality: {self.config.voice.personality}
             logger.error(f"Error sending approval request: {e}", exc_info=True)
             raise WorkflowError(f"Failed to send approval request: {e}") from e
     
-    def _build_ai_context(self, commits: list[Commit]) -> str:
+    
+    async def _fetch_game_context(self) -> Optional[Dict[str, Any]]:
         """
-        Build AI prompt context from commits and config.
+        Fetch Steam game context for better announcement generation.
+        
+        Returns:
+            Game context dictionary or None if unavailable
+        """
+        try:
+            from .steam_client import SteamClient
+            
+            if not self.config.steam_api_key:
+                logger.warning("Steam API key not configured, skipping game context")
+                return None
+            
+            client = SteamClient(self.config.steam_api_key)
+            context = await client.get_game_context(self.config.steam.app_id)
+            
+            logger.info(f"Fetched game context for {context.get('name', 'Unknown')}")
+            return context
+            
+        except Exception as e:
+            logger.warning(f"Failed to fetch game context: {e}")
+            return None
+    
+    def _build_ai_context(self, commits: list[Commit], game_context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Build AI prompt context from commits, config, and game data.
         
         Args:
             commits: List of commits to include in context
+            game_context: Optional Steam game context data
             
         Returns:
             Formatted prompt string
@@ -566,14 +571,32 @@ Personality: {self.config.voice.personality}
         
         commits_text = "\n".join(commit_summaries)
         
+        # Build game context section
+        game_info = ""
+        if game_context:
+            game_info = f"""
+GAME INFORMATION (from Steam):
+- Name: {game_context.get('name', self.config.steam.app_name)}
+- Description: {game_context.get('short_description', 'N/A')[:200]}
+- Genres: {', '.join(game_context.get('genres', []))}
+- Categories: {', '.join(game_context.get('categories', [])[:5])}
+- Developers: {', '.join(game_context.get('developers', []))}
+
+RECENT ANNOUNCEMENTS (for context):
+"""
+            # Add snippets from recent news for consistency
+            recent_news = game_context.get('recent_news', [])
+            if recent_news:
+                for news in recent_news[:2]:  # Last 2 announcements
+                    title = news.get('title', '')[:80]
+                    game_info += f"- {title}\n"
+            else:
+                game_info += "- (No recent announcements)\n"
+        
         # Build full prompt
         prompt = f"""
 You are writing a Steam announcement for the game "{self.config.steam.app_name}".
-
-GAME CONTEXT:
-- Steam App ID: {self.config.steam.app_id}
-- Game Name: {self.config.steam.app_name}
-
+{game_info}
 WRITING STYLE:
 - Tone: {self.config.voice.tone}
 - Personality: {self.config.voice.personality}
@@ -589,12 +612,155 @@ REQUIREMENTS:
 - Focus on player-facing improvements
 - Be specific about what changed
 - Maintain the specified tone and personality
+- Match the style and tone of previous announcements
+- Consider the game's genre and target audience
 
 FORMAT:
-Return a JSON object with "title" and "body" keys.
+Return plain text in this exact structure:
+
+Title: <short title>
+Body:
+<announcement body>
+
+The Body should be Steam-announcement friendly and easy to copy/paste.
+You may use simple Steam BBCode-style tags like: [h2], [b], [i], [u], [list], [*], [url].
 """
         
         return prompt
+
+    async def _create_banner(
+        self,
+        draft: AnnouncementDraft,
+        commits: list[Commit],
+        screenshot_override: Optional[str] = None,
+        crop_mode: str = "smart",
+        with_logo: bool = True,
+    ) -> AnnouncementDraft:
+        """Create a Steam-ready banner from a screenshot and optional logo overlay.
+
+        This project does NOT generate images with AI; it resizes/optimizes a user-provided
+        screenshot and optionally composites the game logo via `ImageCompositor`.
+        """
+        if not self.compositor or not self.config.branding:
+            return draft
+
+        screenshot: Optional[Path] = None
+        screenshot_source: str = ""
+
+        if screenshot_override:
+            screenshot = Path(screenshot_override)
+            screenshot_source = "manual"
+        else:
+            for commit in commits:
+                candidate = getattr(commit, "screenshot_path", None)
+                if candidate:
+                    screenshot = Path(candidate)
+                    screenshot_source = "commit"
+                    break
+
+            if not screenshot:
+                screenshot = self._find_recent_screenshot()
+                if screenshot:
+                    screenshot_source = "recent"
+
+        if not screenshot or not screenshot.exists():
+            logger.warning("No screenshot found for banner generation; skipping", extra={"screenshot": str(screenshot) if screenshot else None})
+            return draft
+
+        try:
+            base_bytes = screenshot.read_bytes()
+        except OSError as exc:
+            logger.warning("Failed to read screenshot; skipping banner", extra={"path": str(screenshot), "error": str(exc)})
+            return draft
+
+        # If we need a deterministic crop mode, pre-crop to 16:9 before running the compositor
+        # (compositor smart-crops only if the aspect ratio doesn't already match).
+        crop_mode_normalized = (crop_mode or "smart").lower()
+        if crop_mode_normalized != "smart":
+            try:
+                from io import BytesIO
+                from PIL import Image
+
+                def crop_to_ratio(img: Image.Image, ratio: float, mode: str) -> Image.Image:
+                    w, h = img.size
+                    current = w / h
+                    if abs(current - ratio) < 1e-3:
+                        return img
+
+                    if current > ratio:
+                        new_w = int(h * ratio)
+                        if mode == "left":
+                            x0 = 0
+                        elif mode == "right":
+                            x0 = w - new_w
+                        elif mode == "thirds":
+                            x0 = max(0, min(w - new_w, (w - new_w) // 3))
+                        else:
+                            x0 = (w - new_w) // 2
+                        return img.crop((x0, 0, x0 + new_w, h))
+
+                    new_h = int(w / ratio)
+                    if mode == "top":
+                        y0 = 0
+                    elif mode == "bottom":
+                        y0 = h - new_h
+                    elif mode == "thirds":
+                        y0 = max(0, min(h - new_h, (h - new_h) // 3))
+                    else:
+                        y0 = (h - new_h) // 2
+                    return img.crop((0, y0, w, y0 + new_h))
+
+                img = Image.open(BytesIO(base_bytes))
+                if img.mode not in {"RGB", "RGBA"}:
+                    img = img.convert("RGBA")
+                img = crop_to_ratio(img, 800 / 450, crop_mode_normalized)
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                base_bytes = buf.getvalue()
+            except Exception as exc:
+                logger.warning("Crop override failed; continuing with smart crop", extra={"error": str(exc), "mode": crop_mode_normalized})
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = (self.repo_root / "wishlistops" / "banners") / f"banner_{timestamp}.png"
+
+        logo_path = None
+        if with_logo and self.config.branding and self.config.branding.logo_path:
+            logo_path = Path(self.config.branding.logo_path)
+
+        try:
+            composited = self.compositor.composite_logo(
+                base_image_data=base_bytes,
+                logo_path=logo_path,
+                output_path=output_path,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Banner compositing failed; retrying without logo",
+                extra={"error": str(exc)},
+            )
+            try:
+                composited = self.compositor.composite_logo(
+                    base_image_data=base_bytes,
+                    logo_path=None,
+                    output_path=output_path,
+                )
+            except Exception as exc2:
+                logger.warning("Banner generation failed; skipping", extra={"error": str(exc2)})
+                return draft
+
+        # Ensure file is saved (composite_logo saves when output_path provided)
+        if not output_path.exists():
+            try:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(composited)
+            except OSError:
+                pass
+
+        draft.banner_path = str(output_path)
+        draft.banner_url = str(output_path)
+        draft.screenshot_used = str(screenshot)
+        draft.screenshot_source = screenshot_source or None
+        return draft
     
     
     def _save_banner(self, image_data: bytes) -> str:
@@ -630,40 +796,99 @@ Return a JSON object with "title" and "body" keys.
 def main() -> None:
     """Main entry point for CLI."""
     parser = argparse.ArgumentParser(
-        description="WishlistOps - Automate Steam marketing for indie games",
-        epilog="See documentation at: https://github.com/your-org/wishlistops"
+        description="WishlistOps - AI Co-Pilot for Steam Marketing",
+        epilog="See documentation at: https://github.com/jamesthegreati/WishlistOps"
     )
+    
+    # Add version argument
     parser.add_argument(
+        "--version", "-v",
+        action="version",
+        version="%(prog)s 1.0.0"
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    
+    # Run command (default)
+    run_parser = subparsers.add_parser('run', help='Run the automation workflow')
+    run_parser.add_argument(
         "--config",
         type=Path,
         default=Path("wishlistops/config.json"),
         help="Path to configuration file"
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Run without making actual API calls"
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging"
     )
     
+    env_port = os.getenv("PORT")
+    try:
+        default_port = int(env_port) if env_port else 8080
+    except ValueError:
+        default_port = 8080
+
+    # Setup/Dashboard command
+    setup_parser = subparsers.add_parser('setup', help='Launch web dashboard for setup and monitoring')
+    setup_parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("wishlistops/config.json"),
+        help="Path to configuration file"
+    )
+    setup_parser.add_argument(
+        "--port",
+        type=int,
+        default=default_port,
+        help="Port for web server (default: 8080)"
+    )
+    setup_parser.add_argument(
+        "--host",
+        type=str,
+        default=os.getenv("WISHLISTOPS_HOST", "127.0.0.1"),
+        help="Host for web server bind address (default: 127.0.0.1)"
+    )
+    
     args = parser.parse_args()
     
-    if args.verbose:
+    # Default to 'run' if no command specified
+    if not args.command:
+        args.command = 'run'
+        args.config = Path("wishlistops/config.json")
+        args.dry_run = False
+        args.verbose = False
+    
+    # Handle setup/dashboard command
+    if args.command == 'setup':
+        try:
+            from .web_server import run_server
+            logger.info("Launching WishlistOps web dashboard...")
+            run_server(args.config, host=args.host, port=args.port)
+        except ImportError as e:
+            logger.error(f"Web server dependencies not installed: {e}")
+            logger.info("Install with: pip install wishlistops[web]")
+            sys.exit(1)
+        return
+    
+    # Handle run command
+    if hasattr(args, 'verbose') and args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Debug logging enabled")
     
     try:
         logger.info("Starting WishlistOps", extra={
             "config": str(args.config),
-            "dry_run": args.dry_run,
-            "verbose": args.verbose
+            "dry_run": getattr(args, 'dry_run', False),
+            "verbose": getattr(args, 'verbose', False)
         })
         
-        orchestrator = WishlistOpsOrchestrator(args.config, dry_run=args.dry_run)
+        orchestrator = WishlistOpsOrchestrator(args.config, dry_run=getattr(args, 'dry_run', False))
         result = asyncio.run(orchestrator.run())
         
         if result.status == WorkflowStatus.SUCCESS:

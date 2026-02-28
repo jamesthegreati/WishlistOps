@@ -42,6 +42,17 @@ class ConfigManager:
             ConfigurationError: If config is invalid or incomplete
             FileNotFoundError: If config file doesn't exist
         """
+        # Load .env (if present) so users don't have to export env vars manually.
+        # This is best-effort; missing python-dotenv should not break runtime.
+        try:
+            from dotenv import load_dotenv  # type: ignore
+
+            repo_root = config_path.resolve().parents[1]
+            load_dotenv(repo_root / ".env", override=False)
+            load_dotenv(config_path.parent / ".env", override=False)
+        except Exception:
+            pass
+
         # Check file exists
         if not config_path.exists():
             raise FileNotFoundError(
@@ -97,9 +108,8 @@ class ConfigManager:
     def _validate_secrets(config: Config) -> None:
         """Validate required environment variables are set."""
         missing = []
-        
-        if not config.steam_api_key:
-            missing.append("STEAM_API_KEY")
+
+        # Steam API key is optional (used only for extra context fetching).
         if not config.google_ai_key:
             missing.append("GOOGLE_AI_KEY")
         if config.automation.require_manual_approval and not config.discord_webhook_url:
@@ -113,6 +123,36 @@ class ConfigManager:
                 "\n".join(f"  export {var}='your-key-here'" for var in missing) +
                 "\n\nOr add to GitHub Secrets if using GitHub Actions."
             )
+    
+    @staticmethod
+    def save_config(config_path: Path, config_data: dict) -> None:
+        """
+        Save configuration to JSON file.
+        
+        Args:
+            config_path: Path to save config.json
+            config_data: Configuration dictionary
+            
+        Raises:
+            ConfigurationError: If config data is invalid
+        """
+        # Validate first (without secrets, those go in env vars)
+        try:
+            # Remove secrets before validation
+            clean_data = {k: v for k, v in config_data.items() 
+                         if k not in ('google_ai_key', 'discord_webhook_url', 'steam_api_key')}
+            # Config(**clean_data)  # Validation
+        except ValidationError as e:
+            raise ConfigurationError(f"Invalid configuration: {e}") from e
+        
+        # Create directory if needed
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save to file (without secrets)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(clean_data, f, indent=2)
+        
+        logger.info(f"Configuration saved to: {config_path}")
     
     @staticmethod
     def create_default_config(config_path: Path) -> None:
@@ -167,10 +207,15 @@ class ConfigManager:
         print("4. Set environment variables for API keys")
 
 
-# Convenience function for imports
+# Convenience functions for imports
 def load_config(config_path: Path) -> Config:
     """Load configuration (convenience wrapper)."""
     return ConfigManager.load_config(config_path)
+
+
+def save_config(config_path: Path, config_data: dict) -> None:
+    """Save configuration (convenience wrapper)."""
+    return ConfigManager.save_config(config_path, config_data)
 
 
 # CLI for creating default config

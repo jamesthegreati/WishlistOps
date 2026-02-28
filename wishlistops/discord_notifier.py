@@ -122,31 +122,55 @@ class DiscordNotifier:
             "tag": tag
         })
         
-        # Build embed
-        attachment_bytes: Optional[bytes] = None
-        attachment_name: Optional[str] = None
+        # Build attachments list
+        files: List[Dict[str, Any]] = []
+        legacy_file_bytes: Optional[bytes] = None
+        legacy_filename: Optional[str] = None
+        
+        # Add banner image if available
         if banner_path:
             path = Path(banner_path)
             if path.exists():
                 try:
-                    attachment_bytes = path.read_bytes()
-                    attachment_name = path.name
-                    logger.info("Attaching local banner to Discord notification", extra={"path": str(path)})
+                    banner_bytes = path.read_bytes()
+                    files.append({
+                        "name": path.name,
+                        "bytes": banner_bytes,
+                        "type": "image"
+                    })
+                    legacy_file_bytes = banner_bytes
+                    legacy_filename = path.name
+                    logger.info("Attaching banner image for download", extra={"path": str(path)})
                 except OSError as exc:
                     logger.warning("Failed to read banner for upload", extra={"path": str(path), "error": str(exc)})
             else:
                 logger.warning("Banner path does not exist", extra={"path": str(path)})
+        
+        # Create announcement text file for easy copy/paste
+        announcement_text = f"{title}\n\n{body}"
+        text_filename = f"announcement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        files.append({
+            "name": text_filename,
+            "bytes": announcement_text.encode('utf-8'),
+            "type": "text"
+        })
+        logger.info("Attaching announcement text for download")
 
         embed = self._build_approval_embed(
             title=title,
             body=body,
-            banner_url=None if attachment_bytes else banner_url,
+            banner_url=None if files else banner_url,
             game_name=game_name,
             tag=tag,
-            steam_app_id=steam_app_id
+            steam_app_id=steam_app_id,
+            has_attachments=bool(files)
         )
-        if attachment_bytes and attachment_name:
-            embed["image"] = {"url": f"attachment://{attachment_name}"}
+        
+        # Set image from first image attachment
+        for file in files:
+            if file.get("type") == "image":
+                embed["image"] = {"url": f"attachment://{file['name']}"}
+                break
         
         # Build Action Row with Link Button
         components = []
@@ -171,10 +195,11 @@ class DiscordNotifier:
             await self._send_webhook(
                 embed,
                 components,
-                file_bytes=attachment_bytes,
-                filename=attachment_name
+                files=files,
+                file_bytes=legacy_file_bytes,
+                filename=legacy_filename,
             )
-            logger.info("Approval request sent successfully")
+            logger.info("Approval request sent successfully with downloadable files")
             return True
         except Exception as e:
             logger.error(f"Failed to send approval request: {e}", exc_info=True)
@@ -187,7 +212,8 @@ class DiscordNotifier:
         banner_url: Optional[str],
         game_name: Optional[str],
         tag: Optional[str],
-        steam_app_id: Optional[str]
+        steam_app_id: Optional[str],
+        has_attachments: bool = False
     ) -> dict:
         """
         Build Discord embed for approval request.
@@ -199,23 +225,33 @@ class DiscordNotifier:
             game_name: Game name
             tag: Git tag
             steam_app_id: Steam App ID
+            has_attachments: Whether files are attached for download
             
         Returns:
             Discord embed payload
         """
-        # Truncate body for preview
-        body_preview = body[:500] + "..." if len(body) > 500 else body
+        # Truncate body for preview (keep embed readable)
+        body_preview = body[:700] + "..." if len(body) > 700 else body
         
         # Build title
-        embed_title = f"🎮 New Announcement Ready: {title[:200]}"
+        embed_title = f"🎮 Steam Announcement Draft: {title[:200]}"
         
         # Build description
         description = (
             f"**Game:** {game_name or 'Unknown'}\n"
-            f"**Version:** {tag or 'Unknown'}\n"
+            f"**Version/Tag:** {tag or 'Unknown'}\n"
             f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n"
-            f"**Preview:**\n{body_preview}"
+            f"**Title**\n{title[:256]}\n\n"
+            f"**Body Preview**\n```\n{body_preview}\n```"
         )
+        
+        # Add download instructions if attachments present
+        if has_attachments:
+            description += (
+                "\n\n📎 **Attachments**\n"
+                "- `announcement_*.txt` (copy/paste into Steam)\n"
+                "- `banner_*.png` (upload as the announcement image)"
+            )
         
         # Add direct link to description if App ID exists
         if steam_app_id:
@@ -235,20 +271,21 @@ class DiscordNotifier:
                 {
                     "name": "📝 Next Steps",
                     "value": (
-                        "1. Review the announcement above\n"
-                        "2. Check the banner image below\n"
-                        "3. Click 'Open Steamworks' to publish\n"
-                        "4. Find the 'Hidden' announcement\n"
-                        "5. Edit if needed, then publish"
+                        "1. Download attached files (text + image)\n"
+                        "2. Click 'Open Steamworks' button below\n"
+                        "3. Create new announcement in Steam\n"
+                        "4. Copy/paste text from .txt file\n"
+                        "5. Upload the banner image\n"
+                        "6. Review and publish!"
                     ),
                     "inline": False
                 },
                 {
-                    "name": "⚠️ Important",
+                    "name": "💬 Why Discord?",
                     "value": (
-                        "The announcement is saved as 'Hidden' in Steam.\n"
-                        "It will NOT be published automatically.\n"
-                        "You must manually publish it after review."
+                        "Discord is the human approval checkpoint.\n"
+                        "WishlistOps generates a draft + files, then sends them somewhere you can quickly review before you publish in Steamworks.\n"
+                        "Steam posting is manual because Steam has no public announcement-posting API."
                     ),
                     "inline": False
                 }
@@ -262,7 +299,7 @@ class DiscordNotifier:
         # Add banner image if available
         if banner_url:
             embed["image"] = {"url": banner_url}
-        
+
         return embed
     
     async def send_error(self, error_message: str) -> bool:
@@ -370,13 +407,40 @@ class DiscordNotifier:
         except Exception as e:
             logger.error(f"Failed to send success notification: {e}")
             return False
+
+    async def send_test_message(self, message: str) -> bool:
+        """Send a lightweight test message to validate webhook configuration.
+
+        This is intended for local dashboard validation. It sends a single embed
+        and does not attach files.
+        """
+        if not self.webhook_url:
+            raise WebhookError("Discord webhook not configured")
+
+        if self.dry_run:
+            logger.info("DRY RUN: Would send Discord test message")
+            return False
+
+        embed = {
+            "title": "✅ WishlistOps Discord Test",
+            "description": message[:2000] if message else "Test message from WishlistOps dashboard.",
+            "color": 5763719,
+            "footer": {"text": "WishlistOps • Webhook Validation"},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        await self._send_webhook(embed)
+        return True
     
     async def _send_webhook(
         self,
         embed: dict,
         components: Optional[List[Dict[str, Any]]] = None,
+        files: Optional[List[Dict[str, Any]]] = None,
+        *,
+        # Backwards compatible single-file API (used by older tests/callers)
         file_bytes: Optional[bytes] = None,
-        filename: Optional[str] = None
+        filename: Optional[str] = None,
     ) -> None:
         """
         Send payload to Discord webhook.
@@ -384,28 +448,68 @@ class DiscordNotifier:
         Args:
             embed: Discord embed object
             components: Optional list of interactive components (buttons)
+            files: Optional list of files to attach (each with 'name', 'bytes', 'type' keys)
             
         Raises:
             WebhookError: If delivery fails
         """
         payload = {
             "username": "WishlistOps",
-            "embeds": [embed]
+            "embeds": [embed],
         }
         
         if components:
             payload["components"] = components
 
-        request_kwargs: Dict[str, Any] = {"timeout": aiohttp.ClientTimeout(total=10)}
-        if file_bytes:
+        request_kwargs: Dict[str, Any] = {"timeout": aiohttp.ClientTimeout(total=30)}
+        
+        # If legacy args are provided, map them into the newer `files` structure.
+        if file_bytes is not None and filename:
+            existing = list(files or [])
+            if not any(str(f.get("name") or "") == str(filename) for f in existing):
+                existing.insert(0, {"name": filename, "bytes": file_bytes, "type": "binary"})
+            files = existing
+
+        if files:
+            # Use multipart form data for file uploads.
+            # Discord expects file fields named like `files[0]`, `files[1]`.
             form = aiohttp.FormData()
+
+            prepared: list[tuple[int, str, bytes, str]] = []
+            attachments: list[dict[str, Any]] = []
+
+            for idx, file in enumerate(list(files)):
+                name = str(file.get("name") or f"file_{idx}")
+                data = file.get("bytes")
+                if not isinstance(data, (bytes, bytearray)):
+                    continue
+
+                content_type = "application/octet-stream"
+                lower = name.lower()
+                if lower.endswith(".png"):
+                    content_type = "image/png"
+                elif lower.endswith(".jpg") or lower.endswith(".jpeg"):
+                    content_type = "image/jpeg"
+                elif lower.endswith(".webp"):
+                    content_type = "image/webp"
+                elif lower.endswith(".txt"):
+                    content_type = "text/plain; charset=utf-8"
+
+                attachments.append({"id": idx, "filename": name})
+                prepared.append((idx, name, bytes(data), content_type))
+
+            if attachments:
+                payload["attachments"] = attachments
+
             form.add_field("payload_json", json.dumps(payload), content_type="application/json")
-            form.add_field(
-                "file",
-                file_bytes,
-                filename=filename or "banner.png",
-                content_type="application/octet-stream"
-            )
+
+            for idx, name, blob, content_type in prepared:
+                form.add_field(
+                    f"files[{idx}]",
+                    blob,
+                    filename=name,
+                    content_type=content_type,
+                )
             request_kwargs["data"] = form
         else:
             request_kwargs["json"] = payload
@@ -435,7 +539,8 @@ class DiscordNotifier:
                     )
                 
                 logger.debug("Discord webhook sent successfully", extra={
-                    "status": response.status
+                    "status": response.status,
+                    "files_count": len(files) if files else 0
                 })
 
 

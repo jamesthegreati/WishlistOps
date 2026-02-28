@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WishlistOps Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0a0b;
+      --bg-secondary: #111113;
+      --bg-tertiary: #18181b;
+      --bg-elevated: #1f1f23;
+
+      --accent-primary: #6366f1;
+      --accent-secondary: #10b981;
+      --accent-warning: #f59e0b;
+
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+
+      --border-color: #27272a;
+      --border-subtle: #1f1f23;
+
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+      --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.15);
+
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      --spacing-2xl: 48px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(17, 17, 19, 0.9);
+      border-bottom: 1px solid var(--border-subtle);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 12px var(--spacing-xl);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-md);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .brand-title {
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .pill {
+      padding: 3px 10px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .btn:hover {
+      background: var(--bg-elevated);
+      box-shadow: var(--shadow-md);
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: var(--spacing-2xl) var(--spacing-xl);
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: var(--spacing-xl);
+    }
+
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      .toc { position: static !important; }
+    }
+
+    .toc {
+      position: sticky;
+      top: 72px;
+      align-self: start;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-lg);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .toc h3 {
+      margin: 0 0 10px 0;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    .toc a {
+      display: block;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .toc a:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .content {
+      background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%);
+    }
+
+    .hero {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-xl);
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .hero h1 {
+      margin: 0 0 6px 0;
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--text-secondary);
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-xl);
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .card h2 {
+      margin: 0 0 12px 0;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .card p { color: var(--text-secondary); margin: 8px 0; }
+
+    .kicker {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .list {
+      margin: 10px 0 0 0;
+      padding-left: 18px;
+      color: var(--text-secondary);
+    }
+
+    .callout {
+      display: flex;
+      gap: 12px;
+      padding: 14px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(14, 165, 233, 0.22);
+      background: rgba(14, 165, 233, 0.10);
+      color: var(--text-secondary);
+      margin-top: 12px;
+    }
+
+    .callout strong { color: var(--text-primary); }
+
+    code {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 2px 6px;
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+
+    a.inline {
+      color: var(--accent-primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    a.inline:hover { text-decoration: underline; }
+
+    .footer {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 var(--spacing-xl) var(--spacing-2xl) var(--spacing-xl);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <a class="brand" href="/">
+        <span style="font-size:1.2rem;">🎮</span>
+        <span class="brand-title">WishlistOps Docs</span>
+        <span class="pill">local-first</span>
+      </a>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <a class="btn" href="/">← Dashboard</a>
+        <a class="btn" href="/guides/discord.md" target="_blank" rel="noopener">Discord Webhook Guide</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <nav class="toc" aria-label="Docs navigation">
+      <h3>Contents</h3>
+      <a href="#what">What it does</a>
+      <a href="#workflow">Workflow</a>
+      <a href="#images">Images</a>
+      <a href="#repos">Multiple repos & games</a>
+      <a href="#commands">CLI commands</a>
+    </nav>
+
+    <main class="content">
+      <section class="hero" id="top">
+        <div class="kicker">WishlistOps</div>
+        <h1>Steam announcements from Git commits</h1>
+        <p>WishlistOps turns player-facing commits into an announcement draft, makes a Steam-ready banner from your screenshots, and posts everything to Discord for human approval.</p>
+        <div class="callout">
+          <div style="font-size:1.1rem;">✅</div>
+          <div>
+            <strong>No AI image generation.</strong> WishlistOps only processes user-provided screenshots/logos (crop/resize/overlay). It does not invent new images.
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="what">
+        <h2>What it does</h2>
+        <p>WishlistOps is an AI co-pilot for Steam marketing. It:</p>
+        <ul class="list">
+          <li>Reads <code>feat:</code>/<code>fix:</code> commits (player-facing) and ignores internal noise.</li>
+          <li>Generates a concise announcement draft using your selected Gemini model.</li>
+          <li>Runs an anti-slop quality filter (avoids corporate buzzwords).</li>
+          <li>Builds an <code>800×450</code> banner from a screenshot and optionally overlays your logo.</li>
+          <li>Sends everything to Discord via webhook for approval (human-in-the-loop).</li>
+        </ul>
+      </section>
+
+      <section class="card" id="workflow">
+        <h2>Workflow</h2>
+        <p>The default workflow is:</p>
+        <ul class="list">
+          <li>Choose a repo/project (Settings → Projects)</li>
+          <li>Load commits (Generate)</li>
+          <li>Pick commits + pick a screenshot (or let it auto-select)</li>
+          <li>Generate draft + preview banner</li>
+          <li>Send to Discord for approval</li>
+        </ul>
+        <p class="text-muted">Tip: Add a screenshot directive in a commit message like <code>[shot: screenshots/my_banner.png]</code> to deterministically pick an image.</p>
+      </section>
+
+      <section class="card" id="images">
+        <h2>Images</h2>
+        <p>WishlistOps expects you to provide:</p>
+        <ul class="list">
+          <li>A logo (recommended: transparent PNG)</li>
+          <li>Screenshots placed under <code>screenshots/</code> (or uploaded via the dashboard)</li>
+        </ul>
+        <p>You can control cropping and logo overlay from the Generate view.</p>
+      </section>
+
+      <section class="card" id="repos">
+        <h2>Multiple repos & games</h2>
+        <p>WishlistOps can manage multiple local Git repos (“projects”) so you can generate announcements for different games without constantly editing files.</p>
+        <ul class="list">
+          <li>Each project has a <strong>repo path</strong> and a <strong>config path</strong>.</li>
+          <li>Switching the active project updates which commits/images/config are used for generation.</li>
+          <li>Secrets remain local to each repo via its own <code>.env</code>.</li>
+        </ul>
+        <div class="callout" style="border-color: rgba(245, 158, 11, 0.25); background: rgba(245, 158, 11, 0.12);">
+          <div style="font-size:1.1rem;">⚠️</div>
+          <div>
+            <strong>Local path required.</strong> The dashboard can’t browse GitHub directly; you point it at a local cloned repo path.
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="commands">
+        <h2>CLI commands</h2>
+        <p>From a terminal in your repo:</p>
+        <ul class="list">
+          <li><code>python -m wishlistops.main run --dry-run --verbose</code></li>
+          <li><code>python -m wishlistops.main setup --port 8080</code></li>
+        </ul>
+        <p>If you prefer dashboard-only, open the dashboard and use Generate.</p>
+      </section>
+
+      <p style="color:var(--text-muted); margin-top: -6px;">Need more? See <a class="inline" href="/guides/discord.md" target="_blank" rel="noopener">Discord webhook setup</a>.</p>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div>WishlistOps Docs • Updated Dec 12, 2025 • Local-only dashboard</div>
+  </footer>
+</body>
+</html>
