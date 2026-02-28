@@ -249,6 +249,7 @@
                 <h2 id="dashboard-repo-name"></h2>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <button id="generate-nav-btn" class="btn-generate">⚡ Generate Announcement</button>
+                    <button id="history-nav-btn" class="btn btn-secondary">📜 Past Announcements</button>
                     <button id="config-nav-btn" class="btn btn-secondary">⚙️ Settings</button>
                     <button id="back-to-repos-dash" class="btn btn-secondary">← Repositories</button>
                 </div>
@@ -256,6 +257,12 @@
 
             <!-- Status Messages -->
             <div id="dashboard-status" class="status-message hidden"></div>
+
+            <!-- Dashboard Tabs -->
+            <div class="dashboard-tabs" id="dashboard-tabs">
+                <button class="dashboard-tab active" data-dtab="generate">⚡ Generate</button>
+                <button class="dashboard-tab" data-dtab="history">📜 Past Announcements</button>
+            </div>
 
             <!-- Announcement Generation Section -->
             <div id="announcement-section" class="announcement-section">
@@ -277,7 +284,15 @@
                 <div id="announcement-composer" class="announcement-composer hidden">
                     <div class="announcement-composer-header">
                         <h3>📝 Announcement Editor</h3>
-                        <span class="status-pill status-pill-success">Generated</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <select id="announcement-type" class="announcement-type-select">
+                                <option value="Update">Update</option>
+                                <option value="Patch Notes">Patch Notes</option>
+                                <option value="Event">Event</option>
+                                <option value="General">General</option>
+                            </select>
+                            <span class="status-pill status-pill-success" id="announcement-status-pill">Draft</span>
+                        </div>
                     </div>
                     <div class="announcement-tabs">
                         <button class="announcement-tab active" data-tab="edit">Edit</button>
@@ -287,13 +302,15 @@
                         <div id="tab-edit">
                             <textarea class="announcement-textarea" id="announcement-text" 
                                       placeholder="Your generated announcement will appear here..."></textarea>
+                            <div class="char-count" id="char-count">0 characters</div>
                         </div>
                         <div id="tab-preview" class="hidden">
                             <div class="steam-preview">
                                 <div class="steam-preview-header">
-                                    <span class="steam-preview-badge">Update</span>
+                                    <span class="steam-preview-badge" id="preview-badge">Update</span>
                                     <span class="steam-preview-title" id="preview-title">Announcement Title</span>
                                 </div>
+                                <div class="steam-preview-images" id="preview-images"></div>
                                 <div class="steam-preview-body" id="preview-body"></div>
                             </div>
                         </div>
@@ -314,6 +331,21 @@
                     <div class="form-actions" style="padding:0 20px 20px;margin-top:0;border-top:1px solid var(--border);padding-top:16px;">
                         <button class="btn btn-primary btn-large" id="approve-btn">✅ Approve &amp; Send to Discord</button>
                         <button class="btn btn-secondary" id="copy-btn">📋 Copy to Clipboard</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Past Announcements Section -->
+            <div id="history-section" class="announcement-section hidden">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h3>📜 Past Announcements</h3>
+                    <button class="btn btn-secondary" id="clear-history-btn" style="font-size:12px;padding:6px 12px;">🗑️ Clear All</button>
+                </div>
+                <div id="history-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-title">No past announcements</div>
+                        <div class="empty-state-text">Generate your first announcement and it will appear here.</div>
                     </div>
                 </div>
             </div>

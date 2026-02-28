@@ -24,7 +24,8 @@ const CONFIG = {
         currentRepo: 'wishlistops_current_repo',
         theme: 'wishlistops_theme',
         onboardingComplete: 'wishlistops_onboarding_complete',
-        voiceSettings: 'wishlistops_voice_settings'
+        voiceSettings: 'wishlistops_voice_settings',
+        announcements: 'wishlistops_announcements'
     },
     
     // WishlistOps config file path
@@ -216,6 +217,7 @@ class CommandPalette {
     getCommands() {
         return [
             { icon: '⚡', label: 'Generate Announcement', action: () => this.ui.showDashboard(), shortcut: '' },
+            { icon: '📜', label: 'View Past Announcements', action: () => { this.ui.showDashboard().then(() => this.ui.switchDashboardTab('history')); }, shortcut: '' },
             { icon: '⚙️', label: 'Open Settings', action: () => this.ui.showConfigEditor(), shortcut: '' },
             { icon: '📂', label: 'Switch Repository', action: () => this.ui.showRepoSelection(), shortcut: '' },
             { icon: '🌙', label: 'Toggle Theme', action: () => document.getElementById('theme-toggle').click(), shortcut: '' },
@@ -291,6 +293,7 @@ class ImageUploadManager {
         this.fileInput = document.getElementById('image-upload');
         this.previewGrid = document.getElementById('image-preview-grid');
         this.files = [];
+        this.dataUrls = [];
 
         if (!this.dropZone) return;
 
@@ -318,12 +321,21 @@ class ImageUploadManager {
             if (!file.type.startsWith('image/')) continue;
             if (file.size > 5 * 1024 * 1024) continue;
             this.files.push(file);
+            // Generate data URL for history persistence
+            const reader = new FileReader();
+            const index = this.dataUrls.length;
+            this.dataUrls.push('');
+            reader.onload = (e) => {
+                this.dataUrls[index] = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
         this.renderPreviews();
     }
 
     removeFile(index) {
         this.files.splice(index, 1);
+        this.dataUrls.splice(index, 1);
         this.renderPreviews();
     }
 
@@ -352,11 +364,49 @@ class ImageUploadManager {
 
 
 // ========================================
+// Announcement History Manager
+// ========================================
+
+class AnnouncementHistory {
+    constructor() {
+        this.storageKey = CONFIG.storageKeys.announcements;
+    }
+
+    getAll() {
+        try {
+            return JSON.parse(localStorage.getItem(this.storageKey) || '[]');
+        } catch {
+            return [];
+        }
+    }
+
+    save(announcement) {
+        const all = this.getAll();
+        all.unshift(announcement);
+        // Keep last 50 announcements
+        if (all.length > 50) all.length = 50;
+        localStorage.setItem(this.storageKey, JSON.stringify(all));
+    }
+
+    remove(id) {
+        const all = this.getAll().filter(a => a.id !== id);
+        localStorage.setItem(this.storageKey, JSON.stringify(all));
+    }
+
+    clearAll() {
+        localStorage.removeItem(this.storageKey);
+    }
+}
+
+
+// ========================================
 // UI Manager
 // ========================================
 
 class UIManager {
     constructor() {
+        this.announcementHistory = new AnnouncementHistory();
+        this.imageUpload = null; // Set after ImageUploadManager init
         this.elements = {
             // Screens
             welcomeScreen: document.getElementById('welcome-screen'),
@@ -432,7 +482,10 @@ class UIManager {
         document.getElementById('back-to-repos-dash').addEventListener('click', () => this.showRepoSelection());
         document.getElementById('config-nav-btn').addEventListener('click', () => this.showConfigEditor());
         document.getElementById('generate-nav-btn').addEventListener('click', () => {
-            document.getElementById('announcement-section').scrollIntoView({ behavior: 'smooth' });
+            this.switchDashboardTab('generate');
+        });
+        document.getElementById('history-nav-btn').addEventListener('click', () => {
+            this.switchDashboardTab('history');
         });
         
         // Form
@@ -461,7 +514,7 @@ class UIManager {
             }
         });
 
-        // Announcement tabs
+        // Announcement tabs (Edit/Preview)
         document.querySelectorAll('.announcement-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.announcement-tab').forEach(t => t.classList.remove('active'));
@@ -471,6 +524,23 @@ class UIManager {
                 document.getElementById('tab-preview').classList.toggle('hidden', tabName !== 'preview');
                 if (tabName === 'preview') this.updateSteamPreview();
             });
+        });
+
+        // Dashboard tabs (Generate/History)
+        document.querySelectorAll('.dashboard-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchDashboardTab(tab.getAttribute('data-dtab'));
+            });
+        });
+
+        // Announcement type change
+        document.getElementById('announcement-type').addEventListener('change', (e) => {
+            document.getElementById('preview-badge').textContent = e.target.value;
+        });
+
+        // Character count
+        this.elements.announcementText.addEventListener('input', () => {
+            this.updateCharCount();
         });
 
         // Generate announcement
@@ -486,7 +556,16 @@ class UIManager {
 
         // Approve button
         document.getElementById('approve-btn').addEventListener('click', () => {
-            this.showStatus('Sent to Discord for approval! ✅', 'success');
+            this.approveAnnouncement();
+        });
+
+        // Clear history
+        document.getElementById('clear-history-btn').addEventListener('click', () => {
+            if (confirm('Clear all past announcements?')) {
+                this.announcementHistory.clearAll();
+                this.renderHistory();
+                this.showStatus('History cleared.', 'info');
+            }
         });
 
         // Onboarding wizard
@@ -777,6 +856,7 @@ class UIManager {
         }
         this.showScreen('dashboard');
         this.elements.dashboardRepoName.textContent = state.currentRepo.full_name;
+        this.switchDashboardTab('generate');
 
         // Load commits
         this.showSkeleton(true);
@@ -788,7 +868,7 @@ class UIManager {
             this.renderCommitList(this.elements.dashboardCommits, commits);
         } catch (error) {
             // Show error but don't crash
-            this.elements.dashboardCommits.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Could not load commits</div><div class="empty-state-text">${error.message}</div></div>`;
+            this.elements.dashboardCommits.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Could not load commits</div><div class="empty-state-text">${this.escapeHtml(error.message)}</div></div>`;
         } finally {
             this.showSkeleton(false);
         }
@@ -876,6 +956,65 @@ class UIManager {
         this.elements.announcementText.value = announcement;
         this.elements.announcementComposer.classList.remove('hidden');
         this.elements.announcementComposer.scrollIntoView({ behavior: 'smooth' });
+        this.updateCharCount();
+
+        // Update status pill
+        const pill = document.getElementById('announcement-status-pill');
+        pill.textContent = 'Draft';
+        pill.className = 'status-pill status-pill-pending';
+
+        // Save to history as draft
+        const announcementType = document.getElementById('announcement-type').value;
+        const imageDataUrls = this.getImageDataUrls();
+        this.currentAnnouncementId = Date.now().toString();
+        this.announcementHistory.save({
+            id: this.currentAnnouncementId,
+            text: announcement,
+            type: announcementType,
+            status: 'draft',
+            repo: state.currentRepo.full_name,
+            date: new Date().toISOString(),
+            images: imageDataUrls
+        });
+    }
+
+    approveAnnouncement() {
+        // Update history entry status
+        if (this.currentAnnouncementId) {
+            const all = this.announcementHistory.getAll();
+            const entry = all.find(a => a.id === this.currentAnnouncementId);
+            if (entry) {
+                entry.status = 'approved';
+                entry.text = this.elements.announcementText.value;
+                entry.type = document.getElementById('announcement-type').value;
+                entry.images = this.getImageDataUrls();
+                localStorage.setItem(CONFIG.storageKeys.announcements, JSON.stringify(all));
+            }
+        }
+
+        const pill = document.getElementById('announcement-status-pill');
+        pill.textContent = 'Approved';
+        pill.className = 'status-pill status-pill-success';
+        this.showStatus('Sent to Discord for approval! ✅', 'success');
+    }
+
+    getImageDataUrls() {
+        if (!this.imageUpload || !this.imageUpload.dataUrls) return [];
+        // Limit to 5 images to keep localStorage size manageable
+        return this.imageUpload.dataUrls.slice(0, 5);
+    }
+
+    updateCharCount() {
+        const text = this.elements.announcementText.value;
+        const count = text.length;
+        const el = document.getElementById('char-count');
+        el.textContent = `${count} characters`;
+        el.classList.remove('warning', 'danger');
+        if (count > 7500) {
+            el.classList.add('danger');
+        } else if (count > 5000) {
+            el.classList.add('warning');
+        }
     }
 
     updateSteamPreview() {
@@ -885,6 +1024,123 @@ class UIManager {
         const body = lines.slice(1).join('\n').trim();
         document.getElementById('preview-title').textContent = title;
         document.getElementById('preview-body').textContent = body;
+        document.getElementById('preview-badge').textContent = document.getElementById('announcement-type').value;
+
+        // Render images in Steam preview
+        const previewImages = document.getElementById('preview-images');
+        previewImages.innerHTML = '';
+        if (this.imageUpload && this.imageUpload.files.length > 0) {
+            this.imageUpload.files.forEach(file => {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.alt = file.name;
+                previewImages.appendChild(img);
+            });
+        }
+    }
+
+    switchDashboardTab(tabName) {
+        document.querySelectorAll('.dashboard-tab').forEach(t => {
+            t.classList.toggle('active', t.getAttribute('data-dtab') === tabName);
+        });
+        document.getElementById('announcement-section').classList.toggle('hidden', tabName !== 'generate');
+        document.getElementById('history-section').classList.toggle('hidden', tabName !== 'history');
+        if (tabName === 'history') {
+            this.renderHistory();
+        }
+    }
+
+    renderHistory() {
+        const container = document.getElementById('history-list');
+        const announcements = this.announcementHistory.getAll();
+
+        if (announcements.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">No past announcements</div><div class="empty-state-text">Generate your first announcement and it will appear here.</div></div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        announcements.forEach(a => {
+            const card = document.createElement('div');
+            card.className = 'history-card';
+            const titleLine = (a.text || '').split('\n')[0] || 'Untitled';
+            const dateStr = new Date(a.date).toLocaleDateString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            const statusClass = a.status === 'approved' ? 'status-pill-success' : 'status-pill-pending';
+
+            let imagesHtml = '';
+            if (a.images && a.images.length > 0) {
+                const imgTags = a.images.map((src, idx) => `<img src="${this.escapeHtmlAttr(src)}" alt="Screenshot ${idx + 1} for ${this.escapeHtmlAttr(titleLine)}">`).join('');
+                imagesHtml = `<div class="history-card-images">${imgTags}</div>`;
+            }
+
+            card.innerHTML = `
+                <div class="history-card-header">
+                    <span class="history-card-title">${this.escapeHtml(titleLine)}</span>
+                    <div class="history-card-meta">
+                        <span class="history-card-badge">${this.escapeHtml(a.type || 'Update')}</span>
+                        <span class="status-pill ${statusClass}">${this.escapeHtml(a.status || 'draft')}</span>
+                        <span class="history-card-date">${dateStr}</span>
+                    </div>
+                </div>
+                <div class="history-card-body">
+                    <div class="steam-preview">
+                        <div class="steam-preview-header">
+                            <span class="steam-preview-badge">${this.escapeHtml(a.type || 'Update')}</span>
+                            <span class="steam-preview-title">${this.escapeHtml(titleLine)}</span>
+                        </div>
+                        ${a.images && a.images.length > 0 ? `<div class="steam-preview-images">${a.images.map((src, idx) => `<img src="${this.escapeHtmlAttr(src)}" alt="Screenshot ${idx + 1} for ${this.escapeHtmlAttr(titleLine)}">`).join('')}</div>` : ''}
+                        <div class="steam-preview-body">${this.escapeHtml((a.text || '').split('\n').slice(1).join('\n').trim())}</div>
+                    </div>
+                    ${imagesHtml}
+                    <div class="history-card-actions">
+                        <button class="btn btn-secondary history-copy-btn">📋 Copy</button>
+                        <button class="btn btn-secondary history-reuse-btn">♻️ Reuse</button>
+                        <button class="btn btn-secondary history-delete-btn" style="color:var(--danger-color);">🗑️ Delete</button>
+                    </div>
+                </div>
+            `;
+
+            // Toggle expand/collapse
+            card.querySelector('.history-card-header').addEventListener('click', () => {
+                card.classList.toggle('expanded');
+            });
+
+            // Copy
+            card.querySelector('.history-copy-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(a.text).then(() => {
+                    this.showStatus('Copied to clipboard! 📋', 'success');
+                });
+            });
+
+            // Reuse
+            card.querySelector('.history-reuse-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.switchDashboardTab('generate');
+                this.elements.announcementText.value = a.text;
+                this.elements.announcementComposer.classList.remove('hidden');
+                document.getElementById('announcement-type').value = a.type || 'Update';
+                this.updateCharCount();
+                this.elements.announcementComposer.scrollIntoView({ behavior: 'smooth' });
+            });
+
+            // Delete
+            card.querySelector('.history-delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.announcementHistory.remove(a.id);
+                this.renderHistory();
+            });
+
+            container.appendChild(card);
+        });
+    }
+
+    escapeHtmlAttr(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML.replace(/"/g, '&quot;');
     }
     
     async loadConfig(repo) {
@@ -1028,6 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ui = new UIManager();
     const commandPalette = new CommandPalette(ui);
     const imageUpload = new ImageUploadManager();
+    ui.imageUpload = imageUpload;
     
     // Check if already authenticated
     if (state.isAuthenticated()) {
