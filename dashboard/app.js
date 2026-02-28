@@ -25,7 +25,10 @@ const CONFIG = {
         theme: 'wishlistops_theme',
         onboardingComplete: 'wishlistops_onboarding_complete',
         voiceSettings: 'wishlistops_voice_settings',
-        announcements: 'wishlistops_announcements'
+        announcements: 'wishlistops_announcements',
+        llmApiKey: 'wishlistops_llm_api_key',
+        llmBaseUrl: 'wishlistops_llm_base_url',
+        llmModel: 'wishlistops_llm_model'
     },
     
     // WishlistOps config file path
@@ -44,6 +47,9 @@ class AppState {
         this.currentRepo = JSON.parse(localStorage.getItem(CONFIG.storageKeys.currentRepo) || 'null');
         this.onboardingComplete = localStorage.getItem(CONFIG.storageKeys.onboardingComplete) === 'true';
         this.voiceSettings = JSON.parse(localStorage.getItem(CONFIG.storageKeys.voiceSettings) || 'null');
+        this.llmApiKey = localStorage.getItem(CONFIG.storageKeys.llmApiKey) || '';
+        this.llmBaseUrl = localStorage.getItem(CONFIG.storageKeys.llmBaseUrl) || 'https://generativelanguage.googleapis.com';
+        this.llmModel = localStorage.getItem(CONFIG.storageKeys.llmModel) || '';
     }
     
     setAccessToken(token) {
@@ -70,6 +76,21 @@ class AppState {
         this.voiceSettings = settings;
         localStorage.setItem(CONFIG.storageKeys.voiceSettings, JSON.stringify(settings));
     }
+
+    setLlmApiKey(key) {
+        this.llmApiKey = key;
+        localStorage.setItem(CONFIG.storageKeys.llmApiKey, key);
+    }
+
+    setLlmBaseUrl(url) {
+        this.llmBaseUrl = url;
+        localStorage.setItem(CONFIG.storageKeys.llmBaseUrl, url);
+    }
+
+    setLlmModel(model) {
+        this.llmModel = model;
+        localStorage.setItem(CONFIG.storageKeys.llmModel, model);
+    }
     
     clearAuth() {
         this.accessToken = null;
@@ -77,11 +98,17 @@ class AppState {
         this.currentRepo = null;
         this.onboardingComplete = false;
         this.voiceSettings = null;
+        this.llmApiKey = '';
+        this.llmBaseUrl = 'https://generativelanguage.googleapis.com';
+        this.llmModel = '';
         localStorage.removeItem(CONFIG.storageKeys.accessToken);
         localStorage.removeItem(CONFIG.storageKeys.currentUser);
         localStorage.removeItem(CONFIG.storageKeys.currentRepo);
         localStorage.removeItem(CONFIG.storageKeys.onboardingComplete);
         localStorage.removeItem(CONFIG.storageKeys.voiceSettings);
+        localStorage.removeItem(CONFIG.storageKeys.llmApiKey);
+        localStorage.removeItem(CONFIG.storageKeys.llmBaseUrl);
+        localStorage.removeItem(CONFIG.storageKeys.llmModel);
     }
     
     isAuthenticated() {
@@ -158,8 +185,57 @@ class GitHubAPI {
 
 
 // ========================================
-// Theme Manager
+// LLM API Client (Google Generative AI compatible)
 // ========================================
+
+class LlmAPI {
+    constructor(apiKey, baseUrl) {
+        this.apiKey = apiKey;
+        this.baseUrl = (baseUrl || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
+    }
+
+    async fetchModels() {
+        const url = `${this.baseUrl}/v1beta/models`;
+        const response = await fetch(url, {
+            headers: { 'x-goog-api-key': this.apiKey }
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error?.message || `Failed to fetch models: ${response.status}`);
+        }
+        const data = await response.json();
+        // Filter to models that support generateContent
+        return (data.models || []).filter(m =>
+            m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')
+        );
+    }
+
+    async generateContent(model, prompt, temperature = 0.7) {
+        const modelName = model.startsWith('models/') ? model : `models/${model}`;
+        const url = `${this.baseUrl}/v1beta/${modelName}:generateContent`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': this.apiKey
+            },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature }
+            })
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error?.message || `LLM generation failed: ${response.status}`);
+        }
+        const data = await response.json();
+        const candidate = data.candidates && data.candidates[0];
+        if (!candidate || !candidate.content || !candidate.content.parts) {
+            throw new Error('No content returned from the model');
+        }
+        return candidate.content.parts.map(p => p.text || '').join('');
+    }
+}
 
 class ThemeManager {
     constructor() {
@@ -466,6 +542,13 @@ class UIManager {
 
             // Onboarding
             wizardReposList: document.getElementById('wizard-repos-list'),
+
+            // LLM settings
+            llmApiKey: document.getElementById('llm-api-key'),
+            llmBaseUrl: document.getElementById('llm-base-url'),
+            llmModel: document.getElementById('llm-model'),
+            fetchModelsBtn: document.getElementById('fetch-models-btn'),
+            llmModelStatus: document.getElementById('llm-model-status'),
         };
         
         this.setupEventListeners();
@@ -544,7 +627,9 @@ class UIManager {
         });
 
         // Generate announcement
-        this.elements.generateBtn.addEventListener('click', () => this.generateAnnouncement());
+        this.elements.generateBtn.addEventListener('click', () => {
+            this.generateAnnouncement().catch(err => this.showStatus(`Error: ${err.message}`, 'error'));
+        });
 
         // Copy to clipboard
         document.getElementById('copy-btn').addEventListener('click', () => {
@@ -566,6 +651,18 @@ class UIManager {
                 this.renderHistory();
                 this.showStatus('History cleared.', 'info');
             }
+        });
+
+        // LLM settings
+        this.elements.fetchModelsBtn.addEventListener('click', () => this.fetchLlmModels());
+        this.elements.llmApiKey.addEventListener('change', () => {
+            state.setLlmApiKey(this.elements.llmApiKey.value.trim());
+        });
+        this.elements.llmBaseUrl.addEventListener('change', () => {
+            state.setLlmBaseUrl(this.elements.llmBaseUrl.value.trim());
+        });
+        this.elements.llmModel.addEventListener('change', () => {
+            state.setLlmModel(this.elements.llmModel.value);
         });
 
         // Onboarding wizard
@@ -593,7 +690,7 @@ class UIManager {
         document.getElementById('wizard-generate').addEventListener('click', () => {
             state.setOnboardingComplete(true);
             this.showDashboard();
-            this.generateAnnouncement();
+            this.generateAnnouncement().catch(err => this.showStatus(`Error: ${err.message}`, 'error'));
         });
     }
 
@@ -885,6 +982,18 @@ class UIManager {
             this.elements.personality.value = state.voiceSettings.personality || '';
         }
 
+        // Populate LLM settings
+        this.elements.llmApiKey.value = state.llmApiKey || '';
+        this.elements.llmBaseUrl.value = state.llmBaseUrl || 'https://generativelanguage.googleapis.com';
+        if (state.llmModel) {
+            // Show current model even before fetching full list
+            const hasOption = [...this.elements.llmModel.options].some(o => o.value === state.llmModel);
+            if (!hasOption) {
+                this.elements.llmModel.innerHTML = `<option value="${this.escapeHtmlAttr(state.llmModel)}">${this.escapeHtml(state.llmModel)}</option>`;
+            }
+            this.elements.llmModel.value = state.llmModel;
+        }
+
         // Try to load existing config
         this.loadConfig(state.currentRepo).catch(() => {
             this.showStatus('No WishlistOps config found. Create one below!', 'info');
@@ -931,7 +1040,7 @@ class UIManager {
         return div.innerHTML;
     }
 
-    generateAnnouncement() {
+    async generateAnnouncement() {
         // Collect selected commits
         const checkboxes = this.elements.dashboardCommits.querySelectorAll('input[type="checkbox"]:checked');
         if (checkboxes.length === 0) {
@@ -946,25 +1055,62 @@ class UIManager {
             commitMessages.push(msg);
         });
 
-        // Generate a sample announcement (in production this calls AI backend)
         const gameName = state.currentRepo.name.replace(/[-_]/g, ' ');
         const tone = state.voiceSettings?.tone || 'casual and excited';
-        const features = commitMessages.map(m => `• ${m}`).join('\n');
-        
-        const announcement = `🎮 ${gameName} — New Update!\n\nHey everyone! We've been hard at work and have some exciting updates to share:\n\n${features}\n\nWe're really excited about these changes and can't wait to hear what you think. Drop us a comment below!\n\n— The ${gameName} Team`;
+        const personality = state.voiceSettings?.personality || 'friendly indie developer';
+        const announcementType = document.getElementById('announcement-type').value;
+
+        // Show generating state
+        this.elements.announcementComposer.classList.remove('hidden');
+        this.elements.announcementText.value = 'Generating announcement with AI…';
+        this.elements.announcementText.disabled = true;
+        this.elements.generateBtn.disabled = true;
+        this.elements.announcementComposer.scrollIntoView({ behavior: 'smooth' });
+        const pill = document.getElementById('announcement-status-pill');
+        pill.textContent = 'Generating…';
+        pill.className = 'status-pill status-pill-active';
+
+        let announcement;
+
+        try {
+            if (state.llmApiKey && state.llmModel) {
+                const llm = new LlmAPI(state.llmApiKey, state.llmBaseUrl);
+                const prompt = `You are a ${personality} writing a Steam ${announcementType} announcement for a game called "${gameName}".
+Your writing tone is: ${tone}.
+
+Based on the following git commit messages, write a polished, engaging Steam announcement. Do NOT just copy the commit messages — rewrite them into a compelling player-facing update. Use emoji sparingly. Do not use markdown formatting — just plain text. Start with a catchy title line, then the body.
+
+Commit messages:
+${commitMessages.map(m => `- ${m}`).join('\n')}
+
+Write the announcement now:`;
+
+                const temp = parseFloat(this.elements.temperature.value);
+                announcement = await llm.generateContent(state.llmModel, prompt, isNaN(temp) ? 0.7 : temp);
+            } else {
+                // Fallback: format locally when no LLM is configured
+                const features = commitMessages.map(m => `• ${m}`).join('\n');
+                announcement = `🎮 ${gameName} — New ${announcementType}!\n\nHey everyone! We've been hard at work and have some exciting updates to share:\n\n${features}\n\nWe're really excited about these changes and can't wait to hear what you think. Drop us a comment below!\n\n— The ${gameName} Team`;
+                this.showStatus('No LLM configured — used local template. Set up an LLM in Settings for AI-generated announcements.', 'info');
+            }
+        } catch (err) {
+            // On LLM error, fall back to local template
+            const features = commitMessages.map(m => `• ${m}`).join('\n');
+            announcement = `🎮 ${gameName} — New ${announcementType}!\n\nHey everyone! We've been hard at work and have some exciting updates to share:\n\n${features}\n\nWe're really excited about these changes and can't wait to hear what you think. Drop us a comment below!\n\n— The ${gameName} Team`;
+            this.showStatus(`LLM error: ${err.message}. Used local template instead.`, 'error');
+        } finally {
+            this.elements.announcementText.disabled = false;
+            this.elements.generateBtn.disabled = false;
+        }
 
         this.elements.announcementText.value = announcement;
-        this.elements.announcementComposer.classList.remove('hidden');
-        this.elements.announcementComposer.scrollIntoView({ behavior: 'smooth' });
         this.updateCharCount();
 
         // Update status pill
-        const pill = document.getElementById('announcement-status-pill');
         pill.textContent = 'Draft';
         pill.className = 'status-pill status-pill-pending';
 
         // Save to history as draft
-        const announcementType = document.getElementById('announcement-type').value;
         const imageDataUrls = this.getImageDataUrls();
         this.currentAnnouncementId = Date.now().toString();
         this.announcementHistory.save({
@@ -996,6 +1142,54 @@ class UIManager {
         pill.textContent = 'Approved';
         pill.className = 'status-pill status-pill-success';
         this.showStatus('Sent to Discord for approval! ✅', 'success');
+    }
+
+    async fetchLlmModels() {
+        const apiKey = this.elements.llmApiKey.value.trim();
+        const baseUrl = this.elements.llmBaseUrl.value.trim();
+        if (!apiKey) {
+            this.showStatus('Please enter an API key first.', 'error');
+            return;
+        }
+        state.setLlmApiKey(apiKey);
+        state.setLlmBaseUrl(baseUrl);
+
+        this.elements.llmModelStatus.textContent = 'Fetching models…';
+        this.elements.fetchModelsBtn.disabled = true;
+
+        try {
+            const llm = new LlmAPI(apiKey, baseUrl);
+            const models = await llm.fetchModels();
+
+            this.elements.llmModel.innerHTML = '';
+            if (models.length === 0) {
+                this.elements.llmModel.innerHTML = '<option value="">No models found</option>';
+                this.elements.llmModelStatus.textContent = 'No models available for this key.';
+                return;
+            }
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                const id = m.name.replace(/^models\//, '');
+                opt.value = id;
+                opt.textContent = m.displayName || id;
+                this.elements.llmModel.appendChild(opt);
+            });
+
+            // Restore previously selected model
+            if (state.llmModel && [...this.elements.llmModel.options].some(o => o.value === state.llmModel)) {
+                this.elements.llmModel.value = state.llmModel;
+            } else {
+                state.setLlmModel(this.elements.llmModel.value);
+            }
+
+            this.elements.llmModelStatus.textContent = `${models.length} model(s) loaded.`;
+            this.showStatus('Models fetched successfully! Select a model.', 'success');
+        } catch (err) {
+            this.elements.llmModelStatus.textContent = `Error: ${err.message}`;
+            this.showStatus(`Failed to fetch models: ${err.message}`, 'error');
+        } finally {
+            this.elements.fetchModelsBtn.disabled = false;
+        }
     }
 
     getImageDataUrls() {
@@ -1207,7 +1401,7 @@ class UIManager {
                 require_approval: this.elements.requireApproval.checked
             },
             ai: {
-                model_text: "gemini-1.5-pro",
+                model_text: state.llmModel || "gemini-1.5-pro",
                 model_image: "gemini-2.5-flash-image",
                 temperature: parseFloat(this.elements.temperature.value),
                 max_retries: 3

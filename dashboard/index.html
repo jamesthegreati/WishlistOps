@@ -466,9 +466,34 @@
                     </div>
                 </section>
 
-                <!-- AI Settings -->
+                <!-- LLM Provider Settings -->
                 <section class="config-section">
-                    <h3>🤖 AI Settings (Advanced)</h3>
+                    <h3>🤖 LLM Provider</h3>
+                    <div class="form-group">
+                        <label for="llm-api-key">API Key *</label>
+                        <input type="password" id="llm-api-key"
+                               placeholder="Enter your Google AI API key">
+                        <small>Get a key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="llm-base-url">Base URL</label>
+                        <input type="text" id="llm-base-url"
+                               placeholder="https://generativelanguage.googleapis.com"
+                               value="https://generativelanguage.googleapis.com">
+                        <small>Change only if using a custom or proxy endpoint</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="llm-model">Model</label>
+                        <div style="display:flex;gap:8px;align-items:flex-start;">
+                            <select id="llm-model" style="flex:1;">
+                                <option value="">— Enter API key &amp; fetch models —</option>
+                            </select>
+                            <button type="button" id="fetch-models-btn" class="btn btn-secondary" style="white-space:nowrap;">
+                                🔄 Fetch Models
+                            </button>
+                        </div>
+                        <small id="llm-model-status"></small>
+                    </div>
                     <div class="form-group">
                         <label for="temperature">Creativity Level</label>
                         <div class="range-group">

@@ -268,6 +268,7 @@ body {
 
 .form-group input[type="text"],
 .form-group input[type="number"],
+.form-group input[type="password"],
 .form-group select,
 .form-group textarea {
     width: 100%;
@@ -282,6 +283,7 @@ body {
 
 .form-group input[type="text"]:focus,
 .form-group input[type="number"]:focus,
+.form-group input[type="password"]:focus,
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
@@ -335,6 +337,15 @@ body {
     margin-top: 5px;
     color: var(--text-secondary);
     font-size: 12px;
+}
+
+.form-group small a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.form-group small a:hover {
+    text-decoration: underline;
 }
 
 .checkbox-group {
