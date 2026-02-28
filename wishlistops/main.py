@@ -9,12 +9,15 @@ Production fixes: See 05_WishlistOps_Revised_Architecture.md
 
 Workflow Steps:
 1. Parse Git commits since last run
-2. Generate announcement text using AI
+2. Generate announcement text using AI (drafting only - not creating images)
 3. Filter content for quality (anti-slop)
-4. Generate banner image
-5. Composite game logo
+4. Process user-provided screenshots for Steam banners
+5. Composite game logo onto banner
 6. Send to Discord for approval
 7. Update state for next run
+
+Note: This tool does NOT generate images with AI. All images are provided
+by the user (screenshots, logos, etc.). We only enhance and format them.
 
 Error Handling:
 - API failures retry with exponential backoff
@@ -28,7 +31,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from git.exc import InvalidGitRepositoryError
 
@@ -49,6 +52,28 @@ logging.basicConfig(
     datefmt='%Y-%m-%dT%H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+
+def check_optional_dependencies():
+    """
+    Check for optional ML dependencies and warn user if missing.
+    
+    This provides a helpful message about installing image-enhancement
+    extras if user wants AI upscaling features.
+    """
+    try:
+        import torch
+        import realesrgan
+        logger.info("AI image enhancement available (RealESRGAN)")
+        return True
+    except ImportError:
+        logger.warning(
+            "AI image enhancement not available. "
+            "Using standard quality Pillow-based upscaling. "
+            "For high-quality upscaling, install with: "
+            "pip install wishlistops[image-enhancement]"
+        )
+        return False
 
 
 class WorkflowError(Exception):
@@ -307,8 +332,11 @@ class WishlistOpsOrchestrator:
         logger.info("Generating announcement with AI")
         
         try:
-            # Build context from config
-            context = self._build_ai_context(commits)
+            # Fetch Steam game context for better announcements
+            game_context = await self._fetch_game_context()
+            
+            # Build context from config and commits
+            context = await self._build_ai_context(commits, game_context)
             
             logger.debug("AI context built", extra={"context_length": len(context)})
             
@@ -419,79 +447,9 @@ Personality: {self.config.voice.personality}
             )
             
         except Exception as e:
-            logger.error(f"Error regenerating content: {e}", exc_info=True)
+            logger.error(f"Regeneration failed: {e}", exc_info=True)
             # Return original draft if regeneration fails
-            logger.warning("Returning original draft due to regeneration failure")
             return draft
-    
-    async def _create_banner(self, draft: AnnouncementDraft, commits: list[Commit]) -> AnnouncementDraft:
-        """
-        Generate and composite banner image.
-        
-        Args:
-            draft: Announcement draft to create banner for
-            commits: Commits associated with this announcement
-            
-        Returns:
-            Draft with banner_url populated
-        """
-        logger.info("Generating banner image")
-        
-        try:
-            base_image_bytes = self._load_deterministic_screenshot(commits)
-            if not base_image_bytes:
-                logger.warning("No deterministic screenshot found; skipping banner creation")
-                draft.banner_url = None
-                draft.banner_path = None
-                return draft
-            logger.info("Using deterministic screenshot for banner")
-            
-            # Composite logo if compositor available
-            final_image = base_image_bytes
-            if self.compositor and self.config.branding:
-                logo_path = Path(self.config.branding.logo_path) if self.config.branding.logo_path else None
-                final_image = self.compositor.composite_logo(
-                    base_image_bytes,
-                    logo_path=logo_path
-                )
-                logger.info("Logo composited successfully")
-            
-            # Save and get URL
-            banner_path = self._save_banner(final_image)
-            draft.banner_url = banner_path
-            draft.banner_path = banner_path
-            
-            logger.info(f"Banner saved: {banner_path}")
-            
-            return draft
-            
-        except Exception as e:
-            logger.error(f"Error creating banner: {e}", exc_info=True)
-            # Non-critical error, continue without banner
-            logger.warning("Continuing without banner image")
-            draft.banner_url = None
-            draft.banner_path = None
-            return draft
-
-    def _load_deterministic_screenshot(self, commits: list[Commit]) -> Optional[bytes]:
-        """Return screenshot bytes using explicit or implicit commit attachment."""
-        for commit in commits:
-            screenshot_attr = getattr(commit, "screenshot_path", None)
-            if not screenshot_attr:
-                continue
-            path = Path(str(screenshot_attr))
-            if path.exists():
-                try:
-                    return path.read_bytes()
-                except OSError as exc:
-                    logger.warning("Failed to read screenshot", extra={"path": str(path), "error": str(exc)})
-        fallback = self._find_recent_screenshot()
-        if fallback:
-            try:
-                return fallback.read_bytes()
-            except OSError as exc:
-                logger.warning("Failed to read fallback screenshot", extra={"path": str(fallback), "error": str(exc)})
-        return None
 
     def _find_recent_screenshot(self) -> Optional[Path]:
         search_dirs = [
@@ -546,12 +504,38 @@ Personality: {self.config.voice.personality}
             logger.error(f"Error sending approval request: {e}", exc_info=True)
             raise WorkflowError(f"Failed to send approval request: {e}") from e
     
-    def _build_ai_context(self, commits: list[Commit]) -> str:
+    
+    async def _fetch_game_context(self) -> Optional[Dict[str, Any]]:
         """
-        Build AI prompt context from commits and config.
+        Fetch Steam game context for better announcement generation.
+        
+        Returns:
+            Game context dictionary or None if unavailable
+        """
+        try:
+            from .steam_client import SteamClient
+            
+            if not self.config.steam_api_key:
+                logger.warning("Steam API key not configured, skipping game context")
+                return None
+            
+            client = SteamClient(self.config.steam_api_key)
+            context = await client.get_game_context(self.config.steam.app_id)
+            
+            logger.info(f"Fetched game context for {context.get('name', 'Unknown')}")
+            return context
+            
+        except Exception as e:
+            logger.warning(f"Failed to fetch game context: {e}")
+            return None
+    
+    async def _build_ai_context(self, commits: list[Commit], game_context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Build AI prompt context from commits, config, and game data.
         
         Args:
             commits: List of commits to include in context
+            game_context: Optional Steam game context data
             
         Returns:
             Formatted prompt string
@@ -566,14 +550,32 @@ Personality: {self.config.voice.personality}
         
         commits_text = "\n".join(commit_summaries)
         
+        # Build game context section
+        game_info = ""
+        if game_context:
+            game_info = f"""
+GAME INFORMATION (from Steam):
+- Name: {game_context.get('name', self.config.steam.app_name)}
+- Description: {game_context.get('short_description', 'N/A')[:200]}
+- Genres: {', '.join(game_context.get('genres', []))}
+- Categories: {', '.join(game_context.get('categories', [])[:5])}
+- Developers: {', '.join(game_context.get('developers', []))}
+
+RECENT ANNOUNCEMENTS (for context):
+"""
+            # Add snippets from recent news for consistency
+            recent_news = game_context.get('recent_news', [])
+            if recent_news:
+                for news in recent_news[:2]:  # Last 2 announcements
+                    title = news.get('title', '')[:80]
+                    game_info += f"- {title}\n"
+            else:
+                game_info += "- (No recent announcements)\n"
+        
         # Build full prompt
         prompt = f"""
 You are writing a Steam announcement for the game "{self.config.steam.app_name}".
-
-GAME CONTEXT:
-- Steam App ID: {self.config.steam.app_id}
-- Game Name: {self.config.steam.app_name}
-
+{game_info}
 WRITING STYLE:
 - Tone: {self.config.voice.tone}
 - Personality: {self.config.voice.personality}
@@ -589,6 +591,8 @@ REQUIREMENTS:
 - Focus on player-facing improvements
 - Be specific about what changed
 - Maintain the specified tone and personality
+- Match the style and tone of previous announcements
+- Consider the game's genre and target audience
 
 FORMAT:
 Return a JSON object with "title" and "body" keys.
@@ -630,40 +634,87 @@ Return a JSON object with "title" and "body" keys.
 def main() -> None:
     """Main entry point for CLI."""
     parser = argparse.ArgumentParser(
-        description="WishlistOps - Automate Steam marketing for indie games",
-        epilog="See documentation at: https://github.com/your-org/wishlistops"
+        description="WishlistOps - AI Co-Pilot for Steam Marketing",
+        epilog="See documentation at: https://github.com/jamesthegreati/WishlistOps"
     )
+    
+    # Add version argument
     parser.add_argument(
+        "--version", "-v",
+        action="version",
+        version="%(prog)s 1.0.0"
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    
+    # Run command (default)
+    run_parser = subparsers.add_parser('run', help='Run the automation workflow')
+    run_parser.add_argument(
         "--config",
         type=Path,
         default=Path("wishlistops/config.json"),
         help="Path to configuration file"
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Run without making actual API calls"
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging"
     )
     
+    # Setup/Dashboard command
+    setup_parser = subparsers.add_parser('setup', help='Launch web dashboard for setup and monitoring')
+    setup_parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("wishlistops/config.json"),
+        help="Path to configuration file"
+    )
+    setup_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port for web server (default: 8080)"
+    )
+    
     args = parser.parse_args()
     
-    if args.verbose:
+    # Default to 'run' if no command specified
+    if not args.command:
+        args.command = 'run'
+        args.config = Path("wishlistops/config.json")
+        args.dry_run = False
+        args.verbose = False
+    
+    # Handle setup/dashboard command
+    if args.command == 'setup':
+        try:
+            from .web_server import run_server
+            logger.info("Launching WishlistOps web dashboard...")
+            run_server(args.config)
+        except ImportError as e:
+            logger.error(f"Web server dependencies not installed: {e}")
+            logger.info("Install with: pip install wishlistops[web]")
+            sys.exit(1)
+        return
+    
+    # Handle run command
+    if hasattr(args, 'verbose') and args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Debug logging enabled")
     
     try:
         logger.info("Starting WishlistOps", extra={
             "config": str(args.config),
-            "dry_run": args.dry_run,
-            "verbose": args.verbose
+            "dry_run": getattr(args, 'dry_run', False),
+            "verbose": getattr(args, 'verbose', False)
         })
         
-        orchestrator = WishlistOpsOrchestrator(args.config, dry_run=args.dry_run)
+        orchestrator = WishlistOpsOrchestrator(args.config, dry_run=getattr(args, 'dry_run', False))
         result = asyncio.run(orchestrator.run())
         
         if result.status == WorkflowStatus.SUCCESS:

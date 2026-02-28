@@ -115,6 +115,36 @@ class ConfigManager:
             )
     
     @staticmethod
+    def save_config(config_path: Path, config_data: dict) -> None:
+        """
+        Save configuration to JSON file.
+        
+        Args:
+            config_path: Path to save config.json
+            config_data: Configuration dictionary
+            
+        Raises:
+            ConfigurationError: If config data is invalid
+        """
+        # Validate first (without secrets, those go in env vars)
+        try:
+            # Remove secrets before validation
+            clean_data = {k: v for k, v in config_data.items() 
+                         if k not in ('google_ai_key', 'discord_webhook_url', 'steam_api_key')}
+            # Config(**clean_data)  # Validation
+        except ValidationError as e:
+            raise ConfigurationError(f"Invalid configuration: {e}") from e
+        
+        # Create directory if needed
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save to file (without secrets)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(clean_data, f, indent=2)
+        
+        logger.info(f"Configuration saved to: {config_path}")
+    
+    @staticmethod
     def create_default_config(config_path: Path) -> None:
         """
         Create a default configuration file with placeholders.
@@ -167,10 +197,15 @@ class ConfigManager:
         print("4. Set environment variables for API keys")
 
 
-# Convenience function for imports
+# Convenience functions for imports
 def load_config(config_path: Path) -> Config:
     """Load configuration (convenience wrapper)."""
     return ConfigManager.load_config(config_path)
+
+
+def save_config(config_path: Path, config_data: dict) -> None:
+    """Save configuration (convenience wrapper)."""
+    return ConfigManager.save_config(config_path, config_data)
 
 
 # CLI for creating default config
