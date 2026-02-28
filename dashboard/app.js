@@ -1000,7 +1000,8 @@ class UIManager {
 
     getImageDataUrls() {
         if (!this.imageUpload || !this.imageUpload.dataUrls) return [];
-        return this.imageUpload.dataUrls.slice(0, 5); // Limit stored images
+        // Limit to 5 images to keep localStorage size manageable
+        return this.imageUpload.dataUrls.slice(0, 5);
     }
 
     updateCharCount() {
@@ -1070,7 +1071,7 @@ class UIManager {
 
             let imagesHtml = '';
             if (a.images && a.images.length > 0) {
-                const imgTags = a.images.map(src => `<img src="${this.escapeAttr(src)}" alt="Screenshot">`).join('');
+                const imgTags = a.images.map((src, idx) => `<img src="${this.escapeHtmlAttr(src)}" alt="Screenshot ${idx + 1} for ${this.escapeHtmlAttr(titleLine)}">`).join('');
                 imagesHtml = `<div class="history-card-images">${imgTags}</div>`;
             }
 
@@ -1089,7 +1090,7 @@ class UIManager {
                             <span class="steam-preview-badge">${this.escapeHtml(a.type || 'Update')}</span>
                             <span class="steam-preview-title">${this.escapeHtml(titleLine)}</span>
                         </div>
-                        ${a.images && a.images.length > 0 ? `<div class="steam-preview-images">${a.images.map(src => `<img src="${this.escapeAttr(src)}" alt="Screenshot">`).join('')}</div>` : ''}
+                        ${a.images && a.images.length > 0 ? `<div class="steam-preview-images">${a.images.map((src, idx) => `<img src="${this.escapeHtmlAttr(src)}" alt="Screenshot ${idx + 1} for ${this.escapeHtmlAttr(titleLine)}">`).join('')}</div>` : ''}
                         <div class="steam-preview-body">${this.escapeHtml((a.text || '').split('\n').slice(1).join('\n').trim())}</div>
                     </div>
                     ${imagesHtml}
@@ -1136,7 +1137,7 @@ class UIManager {
         });
     }
 
-    escapeAttr(str) {
+    escapeHtmlAttr(str) {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML.replace(/"/g, '&quot;');
