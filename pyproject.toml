@@ -1,0 +1,165 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wishlistops"
+version = "1.0.0"
+description = "AI co-pilot for Steam marketing - drafts announcements from Git commits"
+readme = "docs/PYPI_README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "WishlistOps Contributors", email = "support@wishlistops.dev"}
+]
+keywords = [
+    "steam",
+    "gamedev",
+    "marketing",
+    "automation",
+    "indie",
+    "ai-assistant",
+    "github-actions",
+    "discord",
+    "announcement-drafting",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Games/Entertainment",
+    "Topic :: Office/Business",
+    "Operating System :: OS Independent",
+]
+
+# Core dependencies - lightweight install (~100MB)
+dependencies = [
+    "requests>=2.31.0",
+    "aiohttp>=3.9.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "GitPython>=3.1.40",
+    "Pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
+    "tomli>=2.0.1; python_version<'3.11'",
+    "pyyaml>=6.0.1",
+    "google-generativeai>=0.3.0",
+    "discord-webhook>=1.3.0",
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+    "tenacity>=8.2.3",
+    "ratelimit>=2.2.1",
+    "structlog>=23.2.0",
+    "python-json-logger>=2.0.7",
+    "orjson>=3.9.0",
+]
+
+[project.optional-dependencies]
+# Web dashboard with session support
+web = [
+    "aiohttp-cors>=0.7.0",
+    "aiohttp-session>=2.12.0",
+    "cryptography>=41.0.0",
+]
+
+# Interactive CLI with rich formatting
+cli = [
+    "questionary>=2.0.0",
+    "rich>=13.0.0",
+    "click>=8.1.0",
+]
+
+# Discord bot features (approval buttons, etc.)
+discord-bot = [
+    "discord.py>=2.3.0",
+]
+
+# AI image enhancement with Real-ESRGAN (requires NVIDIA GPU, ~3GB)
+# Only install if you need upscaling features
+image-enhancement = [
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "realesrgan>=0.3.0",
+    "basicsr>=1.4.2",
+    "facexlib>=0.3.0",
+    "gfpgan>=1.3.8",
+]
+
+# Development and testing tools
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "mypy>=1.7.0",
+    "types-requests>=2.31.0",
+    "types-PyYAML>=6.0.12",
+    "pylint>=3.0.0",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+]
+
+# Documentation generation
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+]
+
+# All optional features (excluding image-enhancement due to size)
+all = [
+    "wishlistops[web,cli,discord-bot]",
+]
+
+# Full installation including heavy ML dependencies
+full = [
+    "wishlistops[all,image-enhancement]",
+]
+
+[project.urls]
+Homepage = "https://github.com/jamesthegreati/WishlistOps"
+Documentation = "https://github.com/jamesthegreati/WishlistOps/blob/main/README.md"
+Repository = "https://github.com/jamesthegreati/WishlistOps"
+Issues = "https://github.com/jamesthegreati/WishlistOps/issues"
+Changelog = "https://github.com/jamesthegreati/WishlistOps/blob/main/CHANGELOG.md"
+
+[project.scripts]
+wishlistops = "wishlistops.main:main"
+wishlistops-web = "wishlistops.__main__:launch_web_interface"
+wishlistops-cli = "wishlistops.cli:main"
+
+[tool.setuptools]
+packages = ["wishlistops"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+wishlistops = ["../dashboard/*.*", "../dashboard/**/*.*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+asyncio_mode = "auto"

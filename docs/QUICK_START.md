@@ -1,6 +1,10 @@
 # WishlistOps Quick Start Guide
 ## Get Your First Steam Announcement in 5 Minutes
 
+> **What this tool does:** AI drafts announcement TEXT from your commits + formats YOUR screenshots for Steam.
+> 
+> **What this tool does NOT do:** Generate images with AI or auto-post to Steam (no public API exists).
+
 ---
 
 ## 🎯 Choose Your Path

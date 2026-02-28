@@ -3,233 +3,2139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WishlistOps Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>WishlistOps - Steam Marketing Automation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           WishlistOps Dashboard v2.1 - Premium Dark Theme
+           ============================================ */
+        
+        :root {
+            /* Colors - Modern dark theme */
+            --bg-primary: #0a0a0b;
+            --bg-secondary: #111113;
+            --bg-tertiary: #18181b;
+            --bg-elevated: #1f1f23;
+            --bg-hover: #27272a;
+            --bg-active: #2d2d32;
+            
+            /* Accent colors */
+            --accent-primary: #6366f1;
+            --accent-primary-hover: #818cf8;
+            --accent-secondary: #10b981;
+            --accent-secondary-hover: #34d399;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-info: #0ea5e9;
+            
+            /* Gradients */
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            --gradient-glow: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%);
+            
+            /* Text */
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --text-dim: #52525b;
+            
+            /* Borders */
+            --border-color: #27272a;
+            --border-subtle: #1f1f23;
+            --border-highlight: #3f3f46;
+            
+            /* Spacing */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            --spacing-2xl: 48px;
+            --spacing-3xl: 64px;
+            
+            /* Border radius */
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-xl: 20px;
+            --radius-full: 9999px;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+            --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.15);
+            
+            /* Transitions */
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* ============================================
+           Layout
+           ============================================ */
+        
+        .app-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            grid-template-rows: auto 1fr;
+            min-height: 100vh;
+        }
+        
+        @media (max-width: 1024px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar { display: none; }
+        }
+        
+        /* ============================================
+           Header
+           ============================================ */
+        
+        .header {
+            grid-column: 1 / -1;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: var(--spacing-md) var(--spacing-xl);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .logo-icon {
+            font-size: 1.75rem;
+            filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.5));
+        }
+        
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .logo-badge {
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            margin-left: var(--spacing-xs);
+        }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-xs) var(--spacing-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-full);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-secondary);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .status-dot.offline { 
+            background: var(--accent-danger);
+            animation: none;
+        }
+        .status-dot.warning { background: var(--accent-warning); }
+        
+        /* ============================================
+           Sidebar
+           ============================================ */
+        
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            padding: var(--spacing-lg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xl);
+            overflow-y: auto;
+        }
+        
+        .nav-section {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+        
+        .nav-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            padding: var(--spacing-sm) var(--spacing-md);
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition-fast);
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .nav-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .nav-item.active {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: var(--shadow-glow);
+        }
+        
+        .nav-item .icon {
+            font-size: 1.15rem;
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        
+        .nav-item .badge {
+            margin-left: auto;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            background: var(--accent-primary);
+            border-radius: var(--radius-full);
+            color: white;
+        }
+        
+        /* Progress indicator in sidebar */
+        .setup-progress {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-top: auto;
+            border: 1px solid var(--border-subtle);
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .progress-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .progress-percent {
+            font-size: 0.8rem;
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: var(--radius-full);
+            transition: width var(--transition-slow);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+        
+        /* ============================================
+           Main Content
+           ============================================ */
+        
+        .main-content {
+            padding: var(--spacing-2xl);
+            overflow-y: auto;
+            background: var(--gradient-glow);
+        }
+        
+        .page-header {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: var(--spacing-xs);
+            letter-spacing: -0.02em;
+        }
+        
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+        
+        /* ============================================
+           Cards
+           ============================================ */
+        
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            transition: var(--transition-normal);
+        }
+        
+        .card:hover {
+            border-color: var(--border-color);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .card-header {
+            padding: var(--spacing-lg) var(--spacing-xl);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .card-body {
+            padding: var(--spacing-xl);
+        }
+        
+        .card-footer {
+            padding: var(--spacing-md) var(--spacing-xl);
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        /* ============================================
+           Workflow Steps
+           ============================================ */
+        
+        .workflow-steps {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+        
+        .workflow-step {
+            display: grid;
+            grid-template-columns: 56px 1fr auto;
+            gap: var(--spacing-lg);
+            padding: var(--spacing-lg);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
+            transition: var(--transition-normal);
+            cursor: pointer;
+        }
+        
+        .workflow-step:hover {
+            border-color: var(--border-highlight);
+            background: var(--bg-hover);
+            transform: translateX(4px);
+        }
+        
+        .workflow-step.completed {
+            border-color: var(--accent-secondary);
+            background: rgba(16, 185, 129, 0.05);
+        }
+        
+        .workflow-step.active {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-glow);
+        }
+        
+        .step-number {
+            width: 56px;
+            height: 56px;
+            border-radius: var(--radius-lg);
+            background: var(--bg-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text-dim);
+            transition: var(--transition-fast);
+        }
+        
+        .workflow-step.completed .step-number {
+            background: var(--gradient-success);
+            color: white;
+        }
+        
+        .workflow-step.active .step-number {
+            background: var(--gradient-primary);
+            color: white;
+        }
+        
+        .step-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .step-content h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .step-content p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        .step-action {
+            align-self: center;
+        }
+        
+        /* ============================================
+           Buttons
+           ============================================ */
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-highlight);
+        }
+        
+        .btn-success {
+            background: var(--gradient-success);
+            color: white;
+        }
+        
+        .btn-lg {
+            padding: var(--spacing-md) var(--spacing-xl);
+            font-size: 1rem;
+        }
+        
+        .btn-icon {
+            padding: var(--spacing-sm);
+            width: 40px;
+            height: 40px;
+        }
+        
+        /* ============================================
+           Forms
+           ============================================ */
+        
+        .form-group {
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-primary);
+        }
+        
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: var(--spacing-xs);
+        }
+        
+        .form-hint a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+        
+        .form-hint a:hover {
+            text-decoration: underline;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: var(--spacing-md);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: var(--transition-fast);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        .form-input::placeholder {
+            color: var(--text-dim);
+        }
+        
+        /* ============================================
+           Upload Zone
+           ============================================ */
+        
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-3xl) var(--spacing-xl);
+            text-align: center;
+            transition: var(--transition-normal);
+            cursor: pointer;
+            background: var(--bg-tertiary);
+        }
+        
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: var(--accent-primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        
+        .upload-zone .icon {
+            font-size: 3.5rem;
+            margin-bottom: var(--spacing-md);
+            filter: grayscale(0.5);
+        }
+        
+        .upload-zone h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .upload-zone p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        /* ============================================
+           Image Preview
+           ============================================ */
+        
+        .image-preview-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-xl);
+            margin-top: var(--spacing-lg);
+        }
+        
+        @media (max-width: 900px) {
+            .image-preview-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .preview-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+        }
+        
+        .preview-header {
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--bg-elevated);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        
+        .preview-image {
+            aspect-ratio: 16/9;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .preview-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .preview-info {
+            padding: var(--spacing-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .quality-badge {
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        .quality-badge.excellent { background: var(--accent-secondary); color: white; }
+        .quality-badge.good { background: var(--accent-info); color: white; }
+        .quality-badge.fair { background: var(--accent-warning); color: black; }
+        .quality-badge.poor { background: var(--accent-danger); color: white; }
+        
+        /* ============================================
+           Grid Layouts
+           ============================================ */
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-xl);
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-xl);
+        }
+        
+        @media (max-width: 1200px) {
+            .grid-3 { grid-template-columns: repeat(2, 1fr); }
+        }
+        
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+        
+        /* ============================================
+           Status Cards
+           ============================================ */
+        
+        .status-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            transition: var(--transition-normal);
+        }
+        
+        .status-card:hover {
+            border-color: var(--border-color);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .status-card-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .status-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .status-card-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .status-card-value {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: var(--spacing-xs);
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .status-card-change {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        /* ============================================
+           Alerts
+           ============================================ */
+        
+        .alert {
+            padding: var(--spacing-lg);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: flex-start;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .alert-info {
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.2);
+        }
+        
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+        
+        .alert-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        
+        .alert-content h5 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .alert-content p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        /* ============================================
+           Tabs
+           ============================================ */
+        
+        .tabs {
+            display: flex;
+            gap: var(--spacing-xs);
+            border-bottom: 1px solid var(--border-subtle);
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .tab {
+            padding: var(--spacing-md) var(--spacing-lg);
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: var(--transition-fast);
+        }
+        
+        .tab:hover {
+            color: var(--text-primary);
+        }
+        
+        .tab.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+        
+        /* ============================================
+           Commit Guide Styles
+           ============================================ */
+        
+        .commit-example {
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            margin: var(--spacing-sm) 0;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            border-left: 3px solid var(--border-color);
+        }
+        
+        .commit-example.good {
+            border-left-color: var(--accent-secondary);
+            background: rgba(16, 185, 129, 0.05);
+        }
+        
+        .commit-example.bad {
+            border-left-color: var(--accent-danger);
+            background: rgba(239, 68, 68, 0.05);
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: var(--spacing-xs);
+        }
+        
+        .tag-feat { background: rgba(99, 102, 241, 0.2); color: var(--accent-primary); }
+        .tag-fix { background: rgba(16, 185, 129, 0.2); color: var(--accent-secondary); }
+        .tag-chore { background: rgba(113, 113, 122, 0.2); color: var(--text-muted); }
+        
+        /* ============================================
+           Utility Classes
+           ============================================ */
+        
+        .hidden { display: none !important; }
+        .mt-sm { margin-top: var(--spacing-sm); }
+        .mt-md { margin-top: var(--spacing-md); }
+        .mt-lg { margin-top: var(--spacing-lg); }
+        .mt-xl { margin-top: var(--spacing-xl); }
+        .mb-md { margin-bottom: var(--spacing-md); }
+        .mb-lg { margin-bottom: var(--spacing-lg); }
+        .text-muted { color: var(--text-muted); }
+        .text-secondary { color: var(--text-secondary); }
+        .text-center { text-align: center; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-sm { gap: var(--spacing-sm); }
+        .gap-md { gap: var(--spacing-md); }
+        
+        /* ============================================
+           Custom Scrollbar
+           ============================================ */
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-highlight);
+        }
+        
+        /* ============================================
+           Animations
+           ============================================ */
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .view {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        /* ============================================
+           Design System Additions (per Strategy Doc §4.4)
+           ============================================ */
+        
+        :root {
+            /* Focus and a11y */
+            --focus-ring: 0 0 0 2px var(--accent-primary);
+            
+            /* Status colors for workflow states */
+            --status-success: #10b981;
+            --status-pending: #f59e0b;
+            --status-active: #6366f1;
+            --status-error: #ef4444;
+            
+            /* Semantic spacing for cards */
+            --card-padding: 20px;
+            --card-gap: 16px;
+        }
+        
+        /* JetBrains Mono for data/code elements (per Strategy Doc §4.3) */
+        code, .mono, .data-value, .commit-example, .steam-preview-body pre {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+        
+        /* Focus ring for a11y */
+        *:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+            border-radius: var(--radius-sm);
+        }
+        
+        /* ============================================
+           Animated Status Pills (per Strategy Doc §4.3)
+           ============================================ */
+        
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .status-pill::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .status-pill-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--status-success);
+        }
+        .status-pill-success::before { background: var(--status-success); animation: pulse 2s infinite; }
+        
+        .status-pill-pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--status-pending);
+        }
+        .status-pill-pending::before { background: var(--status-pending); animation: pulse 1.5s infinite; }
+        
+        .status-pill-active {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--status-active);
+        }
+        .status-pill-active::before { background: var(--status-active); animation: pulse 2s infinite; }
+        
+        .status-pill-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--status-error);
+        }
+        .status-pill-error::before { background: var(--status-error); }
+        
+        /* ============================================
+           "No AI Slop" Badge (per Strategy Doc §7.3)
+           ============================================ */
+        
+        .anti-slop-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: var(--radius-full);
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            letter-spacing: 0.02em;
+        }
+        
+        .anti-slop-badge .icon {
+            font-size: 0.9rem;
+        }
+        
+        /* ============================================
+           Keyboard Shortcut Hints
+           ============================================ */
+        
+        .kbd {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-highlight);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            box-shadow: 0 1px 0 var(--border-color);
+        }
+        
+        .shortcut-hint {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: auto;
+            opacity: 0.6;
+        }
+        
+        /* ============================================
+           Command Palette (per Strategy Doc §4.1 & §4.3)
+           ============================================ */
+        
+        .command-palette-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 20vh;
+            animation: fadeIn 0.15s ease-out;
+        }
+        
+        .command-palette-overlay.hidden {
+            display: none;
+        }
+        
+        .command-palette {
+            width: 560px;
+            max-width: 90vw;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-highlight);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        
+        .command-palette-input-wrapper {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            gap: var(--spacing-sm);
+        }
+        
+        .command-palette-input-wrapper .search-icon {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        
+        .command-palette-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+        }
+        
+        .command-palette-input::placeholder {
+            color: var(--text-dim);
+        }
+        
+        .command-palette-results {
+            max-height: 320px;
+            overflow-y: auto;
+            padding: var(--spacing-sm);
+        }
+        
+        .command-palette-group {
+            padding: var(--spacing-xs) var(--spacing-md);
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            margin-top: var(--spacing-xs);
+        }
+        
+        .command-palette-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .command-palette-item:hover,
+        .command-palette-item.selected {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .command-palette-item .icon {
+            width: 24px;
+            text-align: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .command-palette-item .label {
+            flex: 1;
+        }
+        
+        .command-palette-item .shortcut {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .command-palette-footer {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        
+        .command-palette-footer span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .command-palette-empty {
+            padding: var(--spacing-xl);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        /* ============================================
+           Steam Announcement Preview (per Strategy Doc §4.2)
+           ============================================ */
+        
+        .steam-preview-container {
+            margin-top: var(--spacing-xl);
+        }
+        
+        .steam-preview {
+            background: #1b2838;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid #2a475e;
+            max-width: 700px;
+        }
+        
+        .steam-preview-header {
+            background: #2a475e;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .steam-preview-header .steam-icon {
+            font-size: 1.1rem;
+        }
+        
+        .steam-preview-header .game-name {
+            color: #c6d4df;
+            font-weight: 600;
+        }
+        
+        .steam-preview-header .event-type {
+            margin-left: auto;
+            color: #8f98a0;
+            font-size: 0.75rem;
+        }
+        
+        .steam-preview-title {
+            padding: 16px 16px 8px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        
+        .steam-preview-body {
+            padding: 8px 16px 16px;
+            color: #acb2b8;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        
+        .steam-preview-body pre {
+            background: #171a21;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        
+        .steam-preview-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #2a475e;
+            color: #8f98a0;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .steam-preview-placeholder {
+            padding: 40px;
+            text-align: center;
+            color: #8f98a0;
+        }
+        
+        .steam-preview-placeholder .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+        
+        .steam-preview-placeholder .subtitle {
+            font-size: 0.75rem;
+            margin-top: 4px;
+        }
+        
+        .anti-slop-badge-sm {
+            font-size: 0.7rem;
+            padding: 3px 10px;
+        }
+        
+        .editor-textarea {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+        
+        .preview-label-row {
+            margin-bottom: var(--spacing-sm);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .preview-label-row .form-label {
+            margin: 0;
+        }
+        
+        .preview-label-hint {
+            font-size: 0.75rem;
+        }
+    </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <div class="logo-section">
-                    <h1 class="logo">🎮 WishlistOps</h1>
-                    <p class="tagline">Automated Steam Marketing for Indie Developers</p>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🎮</span>
+                <span class="logo-text">WishlistOps</span>
+                <span class="logo-badge">v0.2.0</span>
+            </div>
+            <div class="header-actions">
+                <div class="anti-slop-badge" title="AI content is filtered to remove generic, low-quality output">
+                    <span class="icon">🛡️</span> No AI Slop
                 </div>
-                <div id="auth-section">
-                    <button id="sign-in-btn" class="btn btn-primary">
-                        Sign in with GitHub
-                    </button>
-                    <div id="user-info" class="user-info hidden">
-                        <img id="user-avatar" class="avatar" alt="User avatar">
-                        <span id="user-name"></span>
-                        <button id="sign-out-btn" class="btn btn-secondary">Sign Out</button>
-                    </div>
+                <button class="btn btn-secondary" id="cmd-palette-trigger" onclick="toggleCommandPalette()" title="Command Palette (Ctrl+K)" style="gap: 6px; font-size: 0.8rem;">
+                    🔍 <span class="text-muted">Search...</span>
+                    <span class="shortcut-hint"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></span>
+                </button>
+                <div class="status-badge">
+                    <span class="status-dot" id="connection-status"></span>
+                    <span id="connection-text">Checking...</span>
+                </div>
+                <button class="btn btn-secondary btn-icon" title="Settings" onclick="showView('settings')">⚙️</button>
+                <button class="btn btn-secondary btn-icon" title="Help" onclick="window.open('/docs', '_blank')">❓</button>
+            </div>
+        </header>
+        
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="nav-section">
+                <span class="nav-label">Overview</span>
+                <a class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a class="nav-item" data-view="generate" onclick="showView('generate')">
+                    <span class="icon">✨</span>
+                    <span>Generate</span>
+                </a>
+            </nav>
+            
+            <nav class="nav-section">
+                <span class="nav-label">Setup</span>
+                <a class="nav-item" data-view="api-keys" onclick="showView('api-keys')">
+                    <span class="icon">🔑</span>
+                    <span>API Keys</span>
+                </a>
+                <a class="nav-item" data-view="game-config" onclick="showView('game-config')">
+                    <span class="icon">🎮</span>
+                    <span>Game Config</span>
+                </a>
+                <a class="nav-item" data-view="images" onclick="showView('images')">
+                    <span class="icon">🖼️</span>
+                    <span>Images</span>
+                </a>
+            </nav>
+            
+            <nav class="nav-section">
+                <span class="nav-label">Resources</span>
+                <a class="nav-item" data-view="commits" onclick="showView('commits')">
+                    <span class="icon">📝</span>
+                    <span>Commit Guide</span>
+                </a>
+                <a class="nav-item" href="/docs">
+                    <span class="icon">📚</span>
+                    <span>Documentation</span>
+                </a>
+            </nav>
+            
+            <!-- Setup Progress -->
+            <div class="setup-progress">
+                <div class="progress-header">
+                    <span class="progress-title">Setup Progress</span>
+                    <span class="progress-percent" id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
                 </div>
             </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main container">
-        <!-- Loading State -->
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p>Loading...</p>
-        </div>
-
-        <!-- Welcome Screen (not signed in) -->
-        <div id="welcome-screen" class="welcome-screen">
-            <h2>Welcome to WishlistOps</h2>
-            <p class="subtitle">Automate your Steam marketing so you can focus on game development.</p>
-            <div class="features">
-                <div class="feature">
-                    <h3>✨ AI-Generated Announcements</h3>
-                    <p>Automatically create Steam announcements from your Git commits</p>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- Dashboard View -->
+            <section id="view-dashboard" class="view">
+                <div class="page-header">
+                    <h1 class="page-title">Welcome to WishlistOps 👋</h1>
+                    <p class="page-subtitle">Turn your Git commits into polished Steam announcements — save 5+ hours per update</p>
                 </div>
-                <div class="feature">
-                    <h3>🎨 Beautiful Banners</h3>
-                    <p>AI generates custom banners with your game's logo</p>
-                </div>
-                <div class="feature">
-                    <h3>✅ Human Approval</h3>
-                    <p>Review in Discord before posting to Steam</p>
-                </div>
-            </div>
-            <button class="btn btn-primary btn-large" onclick="document.getElementById('sign-in-btn').click()">
-                Get Started
-            </button>
-        </div>
-
-        <!-- Repository Selection -->
-        <div id="repo-selection" class="hidden">
-            <h2>Select Repository</h2>
-            <p class="section-description">Choose the repository you want to configure for WishlistOps:</p>
-            <div id="repos-list" class="repos-list"></div>
-        </div>
-
-        <!-- Configuration Editor -->
-        <div id="config-editor" class="hidden">
-            <div class="editor-header">
-                <h2 id="current-repo-name"></h2>
-                <button id="back-to-repos" class="btn btn-secondary">← Back to Repositories</button>
-            </div>
-
-            <!-- Status Messages -->
-            <div id="status-message" class="status-message hidden"></div>
-
-            <!-- Configuration Form -->
-            <form id="config-form" class="config-form">
                 
-                <!-- Steam Settings -->
-                <section class="config-section">
-                    <h3>🎮 Steam Configuration</h3>
-                    <div class="form-group">
-                        <label for="steam-app-id">Steam App ID *</label>
-                        <input type="text" id="steam-app-id" pattern="[0-9]{6,7}" required
-                               placeholder="e.g., 480">
-                        <small>Find this in your Steamworks dashboard</small>
+                <!-- Quick Start Workflow -->
+                <div class="card mb-lg">
+                    <div class="card-header">
+                        <h3 class="card-title">🚀 Quick Start Guide</h3>
+                        <span class="text-muted" id="steps-complete">0/4 complete</span>
                     </div>
-                    <div class="form-group">
-                        <label for="steam-app-name">Game Name *</label>
-                        <input type="text" id="steam-app-name" required
-                               placeholder="e.g., My Awesome Game">
-                    </div>
-                </section>
-
-                <!-- Branding Settings -->
-                <section class="config-section">
-                    <h3>🎨 Branding</h3>
-                    <div class="form-group">
-                        <label for="art-style">Art Style *</label>
-                        <input type="text" id="art-style" required
-                               placeholder="e.g., pixel art fantasy, low poly sci-fi">
-                        <small>Describe your game's visual style for AI image generation</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="color-palette">Color Palette</label>
-                        <input type="text" id="color-palette"
-                               placeholder="e.g., #FF6B6B, #4ECDC4, #FFE66D">
-                        <small>Hex color codes separated by commas (optional)</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="logo-position">Logo Position</label>
-                        <select id="logo-position">
-                            <option value="top-right">Top Right</option>
-                            <option value="top-left">Top Left</option>
-                            <option value="center">Center</option>
-                            <option value="bottom-right">Bottom Right</option>
-                            <option value="bottom-left">Bottom Left</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="logo-size">Logo Size</label>
-                        <div class="range-group">
-                            <input type="range" id="logo-size" min="10" max="50" value="25">
-                            <output id="logo-size-value">25%</output>
+                    <div class="card-body">
+                        <div class="workflow-steps">
+                            <div class="workflow-step" id="step-1" onclick="showView('api-keys')">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <h4>Add API Keys</h4>
+                                    <p>Configure Google AI and Discord webhook credentials</p>
+                                </div>
+                                <div class="step-action">
+                                    <button class="btn btn-primary">Configure →</button>
+                                </div>
+                            </div>
+                            
+                            <div class="workflow-step" id="step-2" onclick="showView('game-config')">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <h4>Set Up Your Game</h4>
+                                    <p>Add your Steam App ID, game name, and branding preferences</p>
+                                </div>
+                                <div class="step-action">
+                                    <button class="btn btn-secondary">Configure →</button>
+                                </div>
+                            </div>
+                            
+                            <div class="workflow-step" id="step-3" onclick="showView('images')">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <h4>Upload Logo & Screenshots</h4>
+                                    <p>Add your game logo and screenshots for announcements</p>
+                                </div>
+                                <div class="step-action">
+                                    <button class="btn btn-secondary">Upload →</button>
+                                </div>
+                            </div>
+                            
+                            <div class="workflow-step" id="step-4" onclick="showView('generate')">
+                                <div class="step-number">4</div>
+                                <div class="step-content">
+                                    <h4>Generate Your First Announcement</h4>
+                                    <p>Create a test announcement from your recent commits</p>
+                                </div>
+                                <div class="step-action">
+                                    <button class="btn btn-secondary">Generate →</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </section>
-
-                <!-- Voice Settings -->
-                <section class="config-section">
-                    <h3>✍️ Writing Voice</h3>
-                    <div class="form-group">
-                        <label for="tone">Tone</label>
-                        <input type="text" id="tone"
-                               placeholder="e.g., casual and excited">
+                </div>
+                
+                <!-- Status Overview -->
+                <div class="grid-3 mt-xl">
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <div class="status-card-icon">📢</div>
+                            <span class="status-card-title">Announcements</span>
+                        </div>
+                        <div class="status-card-value" id="total-announcements">0</div>
+                        <div class="status-card-change">Total generated</div>
                     </div>
-                    <div class="form-group">
-                        <label for="personality">Personality</label>
-                        <input type="text" id="personality"
-                               placeholder="e.g., friendly indie developer">
+                    
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <div class="status-card-icon">🖼️</div>
+                            <span class="status-card-title">Images Processed</span>
+                        </div>
+                        <div class="status-card-value" id="images-processed">0</div>
+                        <div class="status-card-change">Steam-ready banners</div>
                     </div>
-                    <div class="form-group">
-                        <label for="avoid-phrases">Avoid Phrases</label>
-                        <input type="text" id="avoid-phrases"
-                               placeholder="e.g., monetization, grind, lootbox">
-                        <small>Words/phrases to avoid in announcements (comma-separated)</small>
+                    
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <div class="status-card-icon">⏱️</div>
+                            <span class="status-card-title">Time Saved</span>
+                        </div>
+                        <div class="status-card-value" id="time-saved">0h</div>
+                        <div class="status-card-change">Estimated</div>
                     </div>
-                </section>
-
-                <!-- Automation Settings -->
-                <section class="config-section">
-                    <h3>⚙️ Automation</h3>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" id="automation-enabled" checked>
-                            <span>Enable automation</span>
-                        </label>
+                </div>
+            </section>
+            
+            <!-- API Keys View -->
+            <section id="view-api-keys" class="view hidden">
+                <div class="page-header">
+                    <h1 class="page-title">🔑 API Keys</h1>
+                    <p class="page-subtitle">Connect your external services</p>
+                </div>
+                
+                <div class="alert alert-info">
+                    <span class="alert-icon">🔒</span>
+                    <div class="alert-content">
+                        <h5>Your keys stay local</h5>
+                        <p>All credentials are stored in your local config file and never sent to external servers.</p>
                     </div>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" id="trigger-on-tags" checked>
-                            <span>Trigger on Git tags</span>
-                        </label>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🤖 Google AI</h3>
+                            <span class="status-badge" id="google-status">
+                                <span class="status-dot offline"></span>
+                                Not configured
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="form-label">API Key</label>
+                                <input type="password" class="form-input" id="google-api-key" 
+                                       placeholder="AIza...">
+                                <p class="form-hint">
+                                    <a href="https://aistudio.google.com/apikey" target="_blank">Get your free API key →</a>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="card-footer flex justify-between items-center">
+                            <button class="btn btn-secondary" onclick="testGoogleAPI()">Test Connection</button>
+                            <button class="btn btn-primary" onclick="saveGoogleKey()">Save</button>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="min-days">Minimum Days Between Posts</label>
-                        <input type="number" id="min-days" min="1" max="30" value="7">
-                        <small>Rate limiting (prevents spam)</small>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">💬 Discord Webhook</h3>
+                            <span class="status-badge" id="discord-status">
+                                <span class="status-dot offline"></span>
+                                Not configured
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="form-label">Webhook URL</label>
+                                <input type="url" class="form-input" id="discord-webhook" 
+                                       placeholder="https://discord.com/api/webhooks/...">
+                                <p class="form-hint">
+                                    <a href="guides/discord.md" target="_blank">How to create a webhook →</a>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="card-footer flex justify-between items-center">
+                            <button class="btn btn-secondary" onclick="testDiscordWebhook()">Test Connection</button>
+                            <button class="btn btn-primary" onclick="saveDiscordWebhook()">Save</button>
+                        </div>
                     </div>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" id="require-approval" checked>
-                            <span>Require manual approval (Discord)</span>
-                        </label>
+                </div>
+                
+                <div class="card mt-lg">
+                    <div class="card-header">
+                        <h3 class="card-title">🎮 Steam API (Optional)</h3>
+                        <span class="status-badge" id="steam-status">
+                            <span class="status-dot warning"></span>
+                            Optional
+                        </span>
                     </div>
-                </section>
-
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Steam Web API Key</label>
+                            <input type="password" class="form-input" id="steam-api-key" 
+                                   placeholder="Your Steam API key">
+                            <p class="form-hint">
+                                Used for fetching game info. <a href="https://steamcommunity.com/dev/apikey" target="_blank">Get key →</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Images View -->
+            <section id="view-images" class="view hidden">
+                <div class="page-header">
+                    <h1 class="page-title">🖼️ Image Manager</h1>
+                    <p class="page-subtitle">Upload and manage your game assets</p>
+                </div>
+                
+                <div class="tabs">
+                    <div class="tab active" data-tab="upload">Upload</div>
+                    <div class="tab" data-tab="preview">Preview & Crop</div>
+                    <div class="tab" data-tab="library">Library</div>
+                </div>
+                
+                <!-- Upload Tab -->
+                <div id="tab-upload" class="tab-content">
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Game Logo</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="upload-zone" id="logo-upload-zone">
+                                    <div class="icon">🎨</div>
+                                    <h4>Drop your logo here</h4>
+                                    <p>PNG with transparency recommended</p>
+                                    <p class="mt-sm text-muted">or click to browse</p>
+                                    <input type="file" id="logo-input" accept="image/png,image/jpeg,image/webp" hidden>
+                                </div>
+                                <div id="logo-preview" class="mt-md hidden">
+                                    <img id="logo-preview-img" alt="Logo preview" style="max-width: 200px; border-radius: 8px;">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Screenshots</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="upload-zone" id="screenshot-upload-zone">
+                                    <div class="icon">📸</div>
+                                    <h4>Drop screenshots here</h4>
+                                    <p>1920x1080 or larger recommended</p>
+                                    <p class="mt-sm text-muted">Multiple files supported</p>
+                                    <input type="file" id="screenshot-input" accept="image/png,image/jpeg,image/webp" multiple hidden>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-lg">
+                        <span class="alert-icon">✨</span>
+                        <div class="alert-content">
+                            <h5>Smart Image Processing</h5>
+                            <p>Your images will be automatically cropped to Steam's 16:9 aspect ratio (800×450) using content-aware cropping that preserves the most important parts of your image.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Preview Tab -->
+                <div id="tab-preview" class="tab-content hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Crop Preview</h3>
+                            <div class="flex gap-sm">
+                                <select class="form-input" id="crop-mode" style="width: auto;">
+                                    <option value="smart">Smart (Auto-detect)</option>
+                                    <option value="center">Center</option>
+                                    <option value="top">Top</option>
+                                    <option value="bottom">Bottom</option>
+                                    <option value="thirds">Rule of Thirds</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="image-preview-container">
+                                <div class="preview-card">
+                                    <div class="preview-header">Original Image</div>
+                                    <div class="preview-image" id="original-preview">
+                                        <p class="text-muted">Select an image to preview</p>
+                                    </div>
+                                    <div class="preview-info">
+                                        <span id="original-dimensions">-</span>
+                                        <span id="original-size">-</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="preview-card">
+                                    <div class="preview-header">Steam Banner (800×450)</div>
+                                    <div class="preview-image" id="processed-preview">
+                                        <p class="text-muted">Processing preview</p>
+                                    </div>
+                                    <div class="preview-info">
+                                        <span>800 × 450</span>
+                                        <span class="quality-badge" id="quality-score">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer flex justify-between">
+                            <button class="btn btn-secondary" onclick="resetPreview()">Reset</button>
+                            <button class="btn btn-success" onclick="processAndSave()">✓ Process & Save</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Library Tab -->
+                <div id="tab-library" class="tab-content hidden">
+                    <div class="card">
+                        <div class="card-body text-center" style="padding: 60px;">
+                            <p class="text-muted">Your processed images will appear here</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Commit Guide View -->
+            <section id="view-commits" class="view hidden">
+                <div class="page-header">
+                    <h1 class="page-title">📝 Commit Standards</h1>
+                    <p class="page-subtitle">Write commits that generate great announcements</p>
+                </div>
+                
+                <div class="alert alert-success mb-lg">
+                    <span class="alert-icon">💡</span>
+                    <div class="alert-content">
+                        <h5>Better commits = Better announcements</h5>
+                        <p>WishlistOps uses your commit messages to generate Steam announcements. Well-structured commits create more engaging content!</p>
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">✅ Player-Facing Commits</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-md text-secondary">These will trigger announcements:</p>
+                            
+                            <div class="mb-md">
+                                <span class="tag tag-feat">feat:</span> New features
+                            </div>
+                            <div class="commit-example good">feat: add grappling hook mechanic</div>
+                            
+                            <div class="mb-md mt-lg">
+                                <span class="tag tag-fix">fix:</span> Bug fixes
+                            </div>
+                            <div class="commit-example good">fix: resolve boss invincibility glitch</div>
+                            
+                            <div class="mb-md mt-lg">
+                                <span class="tag tag-feat">perf:</span> Performance
+                            </div>
+                            <div class="commit-example good">perf: optimize forest level for 60fps</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">⏭️ Internal Commits</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-md text-secondary">These won't trigger announcements:</p>
+                            
+                            <div class="mb-md">
+                                <span class="tag tag-chore">chore:</span> Maintenance
+                            </div>
+                            <div class="commit-example bad">chore: update dependencies</div>
+                            
+                            <div class="mb-md mt-lg">
+                                <span class="tag tag-chore">docs:</span> Documentation
+                            </div>
+                            <div class="commit-example bad">docs: fix README typo</div>
+                            
+                            <div class="mb-md mt-lg">
+                                <span class="tag tag-chore">refactor:</span> Code changes
+                            </div>
+                            <div class="commit-example bad">refactor: extract enemy AI class</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-xl">
+                    <div class="card-header">
+                        <h3 class="card-title">📸 Screenshot Directive</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-md">Tell WishlistOps which screenshot to use with your commit:</p>
+                        
+                        <div class="commit-example good">
+                            feat: add dragon boss fight <strong style="color: var(--accent-primary)">[shot: screenshots/dragon_boss.png]</strong>
+                        </div>
+                        
+                        <div class="grid-2 mt-xl">
+                            <div>
+                                <h4 class="mb-md" style="font-size: 0.9rem; font-weight: 600;">Screenshot Priority</h4>
+                                <ol style="color: var(--text-secondary); padding-left: 20px; font-size: 0.85rem; line-height: 2;">
+                                    <li>Explicit <code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">[shot: path]</code> directive</li>
+                                    <li>Images changed in the commit</li>
+                                    <li>Images in <code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">screenshots/</code>, <code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">promo/</code>, <code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">marketing/</code></li>
+                                </ol>
+                            </div>
+                            <div>
+                                <h4 class="mb-md" style="font-size: 0.9rem; font-weight: 600;">Recommended Folders</h4>
+                                <ul style="color: var(--text-secondary); padding-left: 20px; font-size: 0.85rem; line-height: 2;">
+                                    <li><code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">screenshots/</code> - gameplay captures</li>
+                                    <li><code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">promo/</code> - promotional images</li>
+                                    <li><code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">marketing/</code> - marketing assets</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Generate View -->
+            <section id="view-generate" class="view hidden">
+                <div class="page-header">
+                    <h1 class="page-title">✨ Generate Announcement</h1>
+                    <p class="page-subtitle">Create a Steam announcement from your commits</p>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Select Commits</h3>
+                        <span class="status-pill status-pill-pending">Awaiting selection</span>
+                    </div>
+                    <div class="card-body text-center" style="padding: 60px;">
+                        <div id="commits-list">
+                            <p class="text-muted mb-lg">Connect your repository to see recent commits</p>
+                            <button class="btn btn-primary btn-lg" onclick="loadCommits()">🔄 Load Commits</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Announcement Editor with Steam Preview (per Strategy Doc §4.2 Flow 2) -->
+                <div class="card mt-lg">
+                    <div class="card-header">
+                        <h3 class="card-title">📝 Announcement Editor</h3>
+                        <div class="flex gap-sm items-center">
+                            <span class="anti-slop-badge anti-slop-badge-sm">
+                                <span class="icon">🛡️</span> Anti-slop filtered
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <!-- Editor Side -->
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label">Announcement Title</label>
+                                    <input type="text" class="form-input" id="announcement-title" 
+                                           placeholder="e.g., New Dragon Boss Fight & Performance Fixes"
+                                           oninput="updateSteamPreview()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Announcement Body</label>
+                                    <textarea class="form-input editor-textarea" id="announcement-body" rows="12"
+                                              placeholder="Write your announcement here... The AI will generate this from your commits, but you can edit it before publishing."
+                                              oninput="updateSteamPreview()"></textarea>
+                                    <p class="form-hint">Supports Steam BBCode markup: [b]bold[/b], [i]italic[/i], [h1]heading[/h1]</p>
+                                </div>
+                                <div class="flex gap-sm">
+                                    <button class="btn btn-primary btn-lg" onclick="generateFromCommits()" id="generate-btn">
+                                        ✨ Generate with AI
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="sendToDiscord()">
+                                        💬 Send to Discord
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Steam Preview Side (per Strategy Doc §4.2) -->
+                            <div class="steam-preview-container">
+                                <div class="preview-label-row">
+                                    <span class="form-label">Steam Preview</span>
+                                    <span class="text-muted preview-label-hint">Live preview</span>
+                                </div>
+                                <div class="steam-preview" id="steam-preview">
+                                    <div class="steam-preview-header">
+                                        <span class="steam-icon">🎮</span>
+                                        <span class="game-name" id="preview-game-name">Your Game</span>
+                                        <span class="event-type">📢 Patch Notes</span>
+                                    </div>
+                                    <div id="steam-preview-content">
+                                        <div class="steam-preview-placeholder">
+                                            <div class="icon">📝</div>
+                                            <p>Start typing to see your announcement preview</p>
+                                            <p class="subtitle">This shows exactly how it will look on Steam</p>
+                                        </div>
+                                    </div>
+                                    <div class="steam-preview-footer">
+                                        <span>📅 Today</span>
+                                        <span>🏷️ Patch Notes</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Game Config View -->
+            <section id="view-game-config" class="view hidden">
+                <div class="page-header">
+                    <h1 class="page-title">🎮 Game Configuration</h1>
+                    <p class="page-subtitle">Set up your game details and preferences</p>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Steam App ID *</label>
+                                <input type="text" class="form-input" id="steam-app-id" placeholder="e.g., 480">
+                                <p class="form-hint">Find this in your Steamworks dashboard</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Game Name *</label>
+                                <input type="text" class="form-input" id="game-name" placeholder="My Awesome Game">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Art Style Description</label>
+                            <input type="text" class="form-input" id="art-style" 
+                                   placeholder="e.g., pixel art fantasy, low-poly sci-fi, hand-drawn cartoon">
+                            <p class="form-hint">Describe your game's visual style for AI context</p>
+                        </div>
+                        
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Writing Tone</label>
+                                <input type="text" class="form-input" id="tone" placeholder="e.g., casual and excited">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Personality</label>
+                                <input type="text" class="form-input" id="personality" placeholder="e.g., friendly indie developer">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer flex justify-between">
+                        <button class="btn btn-secondary" onclick="resetGameConfig()">Reset</button>
+                        <button class="btn btn-primary" onclick="saveGameConfig()">💾 Save Configuration</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Settings View -->
+            <section id="view-settings" class="view hidden">
+                <div class="page-header">
+                    <h1 class="page-title">⚙️ Settings</h1>
+                    <p class="page-subtitle">Configure WishlistOps preferences</p>
+                </div>
+                
+                <!-- Server Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🌐 Server Settings</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Server Port</label>
+                                <input type="number" class="form-input" id="settings-port" value="8080" min="1024" max="65535">
+                                <p class="form-hint">Port for the web dashboard (default: 8080)</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Auto-open Browser</label>
+                                <select class="form-input" id="settings-auto-browser">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <p class="form-hint">Open browser when starting server</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Image Processing Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🖼️ Image Processing</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Crop Mode</label>
+                                <select class="form-input" id="settings-crop-mode">
+                                    <option value="smart">Smart Crop (Auto-detect focus)</option>
+                                    <option value="center">Center Crop</option>
+                                    <option value="top">Top Crop</option>
+                                    <option value="bottom">Bottom Crop</option>
+                                </select>
+                                <p class="form-hint">How to crop images to Steam's required dimensions</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">JPEG Quality</label>
+                                <input type="range" class="form-input" id="settings-jpeg-quality" min="70" max="100" value="95">
+                                <p class="form-hint">Quality for JPEG output (higher = larger file)</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="settings-preserve-aspect" checked>
+                                Preserve aspect ratio when possible
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Discord Notification Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">💬 Discord Notifications</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="settings-discord-enabled" checked>
+                                Enable Discord notifications
+                            </label>
+                            <p class="form-hint">Send commit announcements to Discord when enabled</p>
+                        </div>
+                        
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Notification Style</label>
+                                <select class="form-input" id="settings-discord-style">
+                                    <option value="rich">Rich Embed (with images)</option>
+                                    <option value="simple">Simple Text</option>
+                                    <option value="minimal">Minimal (title only)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Include Screenshot</label>
+                                <select class="form-input" id="settings-discord-screenshot">
+                                    <option value="banner">Banner image</option>
+                                    <option value="thumbnail">Thumbnail</option>
+                                    <option value="none">None</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- AI Settings -->
-                <section class="config-section">
-                    <h3>🤖 AI Settings (Advanced)</h3>
-                    <div class="form-group">
-                        <label for="temperature">Creativity Level</label>
-                        <div class="range-group">
-                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
-                            <output id="temperature-value">0.7</output>
-                        </div>
-                        <small>0 = consistent, 1 = creative</small>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🤖 AI Content Generation</h3>
                     </div>
-                </section>
-
-                <!-- Action Buttons -->
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary btn-large">
-                        💾 Save Configuration
-                    </button>
-                    <button type="button" id="preview-btn" class="btn btn-secondary">
-                        👁️ Preview JSON
-                    </button>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">AI Model</label>
+                                <select class="form-input" id="settings-ai-model">
+                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast)</option>
+                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Quality)</option>
+                                </select>
+                                <p class="form-hint">Model for generating commit messages</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Creativity Level</label>
+                                <input type="range" class="form-input" id="settings-creativity" min="0" max="100" value="70">
+                                <p class="form-hint">Higher = more creative, Lower = more consistent</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Content Safety</label>
+                            <select class="form-input" id="settings-content-filter">
+                                <option value="strict">Strict (Family-friendly)</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="off">Off (Allow all)</option>
+                            </select>
+                            <p class="form-hint">Filter level for AI-generated content</p>
+                        </div>
+                    </div>
                 </div>
-            </form>
-        </div>
-
-        <!-- JSON Preview Modal -->
-        <div id="preview-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Configuration Preview</h3>
-                    <button class="close" aria-label="Close modal">&times;</button>
+                
+                <!-- Data Management -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">💾 Data Management</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Configuration File</label>
+                                <div class="flex gap-sm">
+                                    <button class="btn btn-secondary" onclick="exportConfig()">📤 Export</button>
+                                    <button class="btn btn-secondary" onclick="importConfig()">📥 Import</button>
+                                </div>
+                                <p class="form-hint">Backup or restore your settings</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Clear Data</label>
+                                <button class="btn btn-danger" onclick="clearAllData()">🗑️ Reset All Settings</button>
+                                <p class="form-hint">This cannot be undone!</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <pre><code id="preview-json"></code></pre>
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" onclick="document.getElementById('preview-modal').classList.add('hidden')">
-                        Close
-                    </button>
+                
+                <!-- About Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">ℹ️ About WishlistOps</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <div>
+                                <p><strong>Version:</strong> 0.2.0</p>
+                                <p><strong>Author:</strong> Your Name</p>
+                                <p class="mt-sm text-muted">Automate your Steam wishlist campaign with AI-powered content generation and beautiful Discord notifications.</p>
+                            </div>
+                            <div class="text-center">
+                                <a href="https://github.com/yourusername/wishlistops" target="_blank" class="btn btn-secondary">
+                                    📦 GitHub Repository
+                                </a>
+                                <a href="/docs" target="_blank" class="btn btn-secondary mt-sm" style="display: block;">
+                                    📚 Documentation
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-primary" onclick="saveSettings()">💾 Save All Settings</button>
+                    </div>
                 </div>
+            </section>
+            
+        </main>
+    </div>
+    
+    <!-- Command Palette (per Strategy Doc §4.1 & §4.3) -->
+    <div class="command-palette-overlay hidden" id="command-palette-overlay" onclick="closeCommandPalette(event)">
+        <div class="command-palette" onclick="event.stopPropagation()">
+            <div class="command-palette-input-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="command-palette-input" id="command-palette-input" 
+                       placeholder="Type a command or search..." 
+                       oninput="filterCommands(this.value)"
+                       onkeydown="handleCommandPaletteKeydown(event)"
+                       autocomplete="off">
+                <kbd class="kbd" style="cursor: pointer;" onclick="toggleCommandPalette()">Esc</kbd>
+            </div>
+            <div class="command-palette-results" id="command-palette-results">
+                <!-- Results populated by JS -->
+            </div>
+            <div class="command-palette-footer">
+                <span><kbd class="kbd">↑↓</kbd> Navigate</span>
+                <span><kbd class="kbd">↵</kbd> Select</span>
+                <span><kbd class="kbd">Esc</kbd> Close</span>
             </div>
         </div>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2025 WishlistOps | <a href="https://github.com/your-org/wishlistops">GitHub</a> | <a href="docs.html">Documentation</a></p>
-        </div>
-    </footer>
-
-    <!-- Scripts -->
-    <script src="app.js"></script>
+    </div>
+    
+    <script src="/static/app_enhanced.js"></script>
 </body>
 </html>
