@@ -675,6 +675,14 @@
     // Utilities
     // ============================================
     
+    const MAX_DISCORD_DESCRIPTION_LENGTH = 2000;
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     function formatFileSize(bytes) {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -864,9 +872,9 @@
                   + 'data-index="' + index + '" '
                   + 'onmouseenter="selectCommandItem(' + index + ')" '
                   + 'onclick="executeCommand(' + index + ')">'
-                  + '<span class="icon">' + cmd.icon + '</span>'
-                  + '<span class="label">' + cmd.label + '</span>'
-                  + (cmd.shortcut ? '<span class="shortcut"><kbd class="kbd">' + cmd.shortcut + '</kbd></span>' : '')
+                  + '<span class="icon">' + escapeHtml(cmd.icon) + '</span>'
+                  + '<span class="label">' + escapeHtml(cmd.label) + '</span>'
+                  + (cmd.shortcut ? '<span class="shortcut"><kbd class="kbd">' + escapeHtml(cmd.shortcut) + '</kbd></span>' : '')
                   + '</div>';
         });
         
@@ -1012,16 +1020,13 @@
             container.innerHTML = '<div class="steam-preview-placeholder">'
                 + '<div class="icon">📝</div>'
                 + '<p>Start typing to see your announcement preview</p>'
-                + '<p style="font-size: 0.75rem; margin-top: 4px;">This shows exactly how it will look on Steam</p>'
+                + '<p class="subtitle">This shows exactly how it will look on Steam</p>'
                 + '</div>';
             return;
         }
         
-        // Render Steam-style preview
-        let renderedBody = body
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
+        // Render Steam-style preview (HTML-escape first, then apply BBCode)
+        let renderedBody = escapeHtml(body)
             .replace(/\[b\](.*?)\[\/b\]/g, '<strong>$1</strong>')
             .replace(/\[i\](.*?)\[\/i\]/g, '<em>$1</em>')
             .replace(/\[u\](.*?)\[\/u\]/g, '<u>$1</u>')
@@ -1031,9 +1036,7 @@
             .replace(/\[\/list\]/g, '</ul>')
             .replace(/\[\*\](.*?)(?=\[\*\]|\[\/list\]|$)/gs, '<li>$1</li>');
         
-        const escapedTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        
-        container.innerHTML = '<div class="steam-preview-title">' + escapedTitle + '</div>'
+        container.innerHTML = '<div class="steam-preview-title">' + escapeHtml(title) + '</div>'
             + '<div class="steam-preview-body">' + renderedBody + '</div>';
     };
     
@@ -1072,7 +1075,7 @@
             body: JSON.stringify({
                 embeds: [{
                     title: '📢 ' + title,
-                    description: body.substring(0, 2000),
+                    description: body.substring(0, MAX_DISCORD_DESCRIPTION_LENGTH),
                     color: 5793266,
                     footer: { text: 'WishlistOps Announcement Draft — React to approve' }
                 }]

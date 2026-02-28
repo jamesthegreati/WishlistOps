@@ -1276,6 +1276,37 @@
             margin-bottom: 8px;
             opacity: 0.5;
         }
+        
+        .steam-preview-placeholder .subtitle {
+            font-size: 0.75rem;
+            margin-top: 4px;
+        }
+        
+        .anti-slop-badge-sm {
+            font-size: 0.7rem;
+            padding: 3px 10px;
+        }
+        
+        .editor-textarea {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+        
+        .preview-label-row {
+            margin-bottom: var(--spacing-sm);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .preview-label-row .form-label {
+            margin: 0;
+        }
+        
+        .preview-label-hint {
+            font-size: 0.75rem;
+        }
     </style>
 </head>
 <body>
@@ -1292,7 +1323,7 @@
                     <span class="icon">🛡️</span> No AI Slop
                 </div>
                 <button class="btn btn-secondary" id="cmd-palette-trigger" onclick="toggleCommandPalette()" title="Command Palette (Ctrl+K)" style="gap: 6px; font-size: 0.8rem;">
-                    🔍 <span style="color: var(--text-muted)">Search...</span>
+                    🔍 <span class="text-muted">Search...</span>
                     <span class="shortcut-hint"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></span>
                 </button>
                 <div class="status-badge">
@@ -1779,7 +1810,7 @@
                     <div class="card-header">
                         <h3 class="card-title">📝 Announcement Editor</h3>
                         <div class="flex gap-sm items-center">
-                            <span class="anti-slop-badge" style="font-size: 0.7rem; padding: 3px 10px;">
+                            <span class="anti-slop-badge anti-slop-badge-sm">
                                 <span class="icon">🛡️</span> Anti-slop filtered
                             </span>
                         </div>
@@ -1796,9 +1827,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Announcement Body</label>
-                                    <textarea class="form-input" id="announcement-body" rows="12" 
+                                    <textarea class="form-input editor-textarea" id="announcement-body" rows="12"
                                               placeholder="Write your announcement here... The AI will generate this from your commits, but you can edit it before publishing."
-                                              style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; resize: vertical;"
                                               oninput="updateSteamPreview()"></textarea>
                                     <p class="form-hint">Supports Steam BBCode markup: [b]bold[/b], [i]italic[/i], [h1]heading[/h1]</p>
                                 </div>
@@ -1814,9 +1844,9 @@
                             
                             <!-- Steam Preview Side (per Strategy Doc §4.2) -->
                             <div class="steam-preview-container">
-                                <div style="margin-bottom: var(--spacing-sm); display: flex; align-items: center; justify-content: space-between;">
-                                    <span class="form-label" style="margin: 0;">Steam Preview</span>
-                                    <span class="text-muted" style="font-size: 0.75rem;">Live preview</span>
+                                <div class="preview-label-row">
+                                    <span class="form-label">Steam Preview</span>
+                                    <span class="text-muted preview-label-hint">Live preview</span>
                                 </div>
                                 <div class="steam-preview" id="steam-preview">
                                     <div class="steam-preview-header">
@@ -1828,7 +1858,7 @@
                                         <div class="steam-preview-placeholder">
                                             <div class="icon">📝</div>
                                             <p>Start typing to see your announcement preview</p>
-                                            <p style="font-size: 0.75rem; margin-top: 4px;">This shows exactly how it will look on Steam</p>
+                                            <p class="subtitle">This shows exactly how it will look on Steam</p>
                                         </div>
                                     </div>
                                     <div class="steam-preview-footer">
