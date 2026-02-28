@@ -19,6 +19,7 @@ TASK_*.md
 # Python / OS / IDE
 __pycache__/
 *.pyc
+*.egg-info/
 .venv/
 .vscode/
 .DS_Store
