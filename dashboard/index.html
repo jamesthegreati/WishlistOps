@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WishlistOps Dashboard</title>
+    <title>WishlistOps — Automated Steam Marketing for Indie Devs</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,21 +13,42 @@
             <div class="header-content">
                 <div class="logo-section">
                     <h1 class="logo">🎮 WishlistOps</h1>
-                    <p class="tagline">Automated Steam Marketing for Indie Developers</p>
+                    <p class="tagline">Git commits → Steam announcements in minutes</p>
                 </div>
-                <div id="auth-section">
-                    <button id="sign-in-btn" class="btn btn-primary">
-                        Sign in with GitHub
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="kbd-hint" id="cmd-k-hint" title="Command palette">
+                        <span>Search...</span>
+                        <kbd>⌘</kbd><kbd>K</kbd>
                     </button>
-                    <div id="user-info" class="user-info hidden">
-                        <img id="user-avatar" class="avatar" alt="User avatar">
-                        <span id="user-name"></span>
-                        <button id="sign-out-btn" class="btn btn-secondary">Sign Out</button>
+                    <button class="theme-toggle" id="theme-toggle" title="Toggle theme">🌙</button>
+                    <div id="auth-section">
+                        <button id="sign-in-btn" class="btn btn-primary">
+                            Sign in with GitHub
+                        </button>
+                        <div id="user-info" class="user-info hidden">
+                            <img id="user-avatar" class="avatar" alt="User avatar">
+                            <span id="user-name"></span>
+                            <button id="sign-out-btn" class="btn btn-secondary">Sign Out</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </header>
+
+    <!-- Command Palette -->
+    <div id="command-palette-overlay" class="command-palette-overlay hidden">
+        <div class="command-palette">
+            <input type="text" class="command-palette-input" id="command-input" 
+                   placeholder="Type a command..." autocomplete="off">
+            <div class="command-palette-results" id="command-results"></div>
+            <div class="command-palette-footer">
+                <span><kbd>↑↓</kbd> Navigate</span>
+                <span><kbd>↵</kbd> Select</span>
+                <span><kbd>Esc</kbd> Close</span>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="main container">
@@ -37,27 +58,182 @@
             <p>Loading...</p>
         </div>
 
+        <!-- Skeleton Loading -->
+        <div id="skeleton-loading" class="hidden" style="max-width:800px;margin:0 auto;">
+            <div class="skeleton skeleton-text-lg"></div>
+            <div class="skeleton skeleton-text" style="width:80%"></div>
+            <div class="skeleton skeleton-text" style="width:60%;margin-bottom:24px;"></div>
+            <div class="skeleton skeleton-card" style="margin-bottom:16px;"></div>
+            <div class="skeleton skeleton-card" style="margin-bottom:16px;"></div>
+            <div class="skeleton skeleton-card"></div>
+        </div>
+
         <!-- Welcome Screen (not signed in) -->
         <div id="welcome-screen" class="welcome-screen">
-            <h2>Welcome to WishlistOps</h2>
-            <p class="subtitle">Automate your Steam marketing so you can focus on game development.</p>
+            <h2>Turn Git commits into Steam announcements</h2>
+            <p class="subtitle">Save 5+ hours per update. AI writes, you approve. No slop.</p>
+
+            <div class="trust-badges">
+                <div class="trust-badge">
+                    <span class="trust-badge-icon">🛡️</span>
+                    <span>Anti-slop filter</span>
+                </div>
+                <div class="trust-badge">
+                    <span class="trust-badge-icon">🔗</span>
+                    <span>Git-native workflow</span>
+                </div>
+                <div class="trust-badge">
+                    <span class="trust-badge-icon">👤</span>
+                    <span>Human-in-the-loop</span>
+                </div>
+                <div class="trust-badge">
+                    <span class="trust-badge-icon">🔒</span>
+                    <span>Your screenshots, enhanced</span>
+                </div>
+            </div>
+
             <div class="features">
                 <div class="feature">
                     <h3>✨ AI-Generated Announcements</h3>
-                    <p>Automatically create Steam announcements from your Git commits</p>
+                    <p>Automatically create Steam announcements from your Git commits — no copy-pasting</p>
                 </div>
                 <div class="feature">
-                    <h3>🎨 Beautiful Banners</h3>
-                    <p>AI generates custom banners with your game's logo</p>
+                    <h3>🎨 Screenshot Enhancement</h3>
+                    <p>Upload YOUR screenshots, add logo overlays and branding automatically</p>
                 </div>
                 <div class="feature">
-                    <h3>✅ Human Approval</h3>
-                    <p>Review in Discord before posting to Steam</p>
+                    <h3>✅ Discord Approval</h3>
+                    <p>Review everything in Discord before it goes live. Nothing posts without your OK</p>
                 </div>
             </div>
             <button class="btn btn-primary btn-large" onclick="document.getElementById('sign-in-btn').click()">
-                Get Started
+                Get Started — It's Free
             </button>
+
+            <!-- Pricing Section -->
+            <div class="pricing-section">
+                <h3>Simple, indie-friendly pricing</h3>
+                <p class="pricing-subtitle">Free to start. Upgrade when you're ready.</p>
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <div class="pricing-tier-name">Free</div>
+                        <div class="pricing-price">$0<span>/mo</span></div>
+                        <ul class="pricing-features">
+                            <li>1 game</li>
+                            <li>3 generations/month</li>
+                            <li>Basic AI model</li>
+                            <li>Discord approval</li>
+                            <li>Community support</li>
+                        </ul>
+                    </div>
+                    <div class="pricing-card featured">
+                        <div class="pricing-tier-name">Indie</div>
+                        <div class="pricing-price">$9<span>/mo</span></div>
+                        <ul class="pricing-features">
+                            <li>1 game</li>
+                            <li>15 generations/month</li>
+                            <li>Pro AI model</li>
+                            <li>Image compositing</li>
+                            <li>Custom voice</li>
+                            <li>Email support</li>
+                        </ul>
+                    </div>
+                    <div class="pricing-card">
+                        <div class="pricing-tier-name">Studio</div>
+                        <div class="pricing-price">$19<span>/mo</span></div>
+                        <ul class="pricing-features">
+                            <li>3 games</li>
+                            <li>50 generations/month</li>
+                            <li>Image + upscale</li>
+                            <li>Team access</li>
+                            <li>Priority support</li>
+                        </ul>
+                    </div>
+                    <div class="pricing-card">
+                        <div class="pricing-tier-name">Publisher</div>
+                        <div class="pricing-price">$49<span>/mo</span></div>
+                        <ul class="pricing-features">
+                            <li>10 games</li>
+                            <li>Unlimited generations</li>
+                            <li>API access</li>
+                            <li>White-label option</li>
+                            <li>Dedicated support</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onboarding Wizard (shown after first sign-in) -->
+        <div id="onboarding-wizard" class="onboarding-wizard hidden">
+            <div class="wizard-progress">
+                <div class="wizard-step-indicator">
+                    <div class="wizard-dot active" id="wizard-dot-1">1</div>
+                    <div class="wizard-line" id="wizard-line-1"></div>
+                    <div class="wizard-dot" id="wizard-dot-2">2</div>
+                    <div class="wizard-line" id="wizard-line-2"></div>
+                    <div class="wizard-dot" id="wizard-dot-3">3</div>
+                </div>
+            </div>
+
+            <!-- Step 1: Connect Repository -->
+            <div id="wizard-step-1" class="wizard-step-content">
+                <div class="wizard-step-title">Connect your repository</div>
+                <p class="wizard-step-description">Select the game repo you want to generate announcements for.</p>
+                <div id="wizard-repos-list" class="repos-list"></div>
+                <div class="wizard-actions">
+                    <div></div>
+                    <button class="btn btn-primary" id="wizard-next-1" disabled>Next →</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Configure Voice -->
+            <div id="wizard-step-2" class="wizard-step-content hidden">
+                <div class="wizard-step-title">Choose your writing voice</div>
+                <p class="wizard-step-description">How should your announcements sound? Pick a tone or customize.</p>
+                <div class="voice-options">
+                    <div class="voice-option" data-tone="casual" data-personality="friendly indie developer">
+                        <div class="voice-option-emoji">😎</div>
+                        <div class="voice-option-label">Casual</div>
+                    </div>
+                    <div class="voice-option" data-tone="professional" data-personality="polished game studio">
+                        <div class="voice-option-emoji">👔</div>
+                        <div class="voice-option-label">Professional</div>
+                    </div>
+                    <div class="voice-option" data-tone="playful and excited" data-personality="enthusiastic creator">
+                        <div class="voice-option-emoji">🎉</div>
+                        <div class="voice-option-label">Playful</div>
+                    </div>
+                    <div class="voice-option" data-tone="technical and detailed" data-personality="expert developer">
+                        <div class="voice-option-emoji">🔧</div>
+                        <div class="voice-option-label">Technical</div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="wizard-custom-tone">Or customize:</label>
+                    <input type="text" id="wizard-custom-tone" placeholder="e.g., witty and self-deprecating">
+                </div>
+                <div class="wizard-actions">
+                    <button class="btn btn-secondary" id="wizard-back-2">← Back</button>
+                    <button class="btn btn-primary" id="wizard-next-2">Next →</button>
+                </div>
+            </div>
+
+            <!-- Step 3: First Generation -->
+            <div id="wizard-step-3" class="wizard-step-content hidden">
+                <div class="wizard-step-title">🎉 Generate your first announcement!</div>
+                <p class="wizard-step-description">We found recent commits. Click generate to see WishlistOps in action.</p>
+                <div id="wizard-commits" class="commit-list" style="margin-bottom:16px;">
+                    <div class="empty-state" style="padding:24px;">
+                        <div class="empty-state-icon">📋</div>
+                        <div class="empty-state-text">Your recent commits will appear here</div>
+                    </div>
+                </div>
+                <div class="wizard-actions">
+                    <button class="btn btn-secondary" id="wizard-back-3">← Back</button>
+                    <button class="btn-generate" id="wizard-generate">⚡ Generate Announcement</button>
+                </div>
+            </div>
         </div>
 
         <!-- Repository Selection -->
@@ -67,11 +243,90 @@
             <div id="repos-list" class="repos-list"></div>
         </div>
 
+        <!-- Dashboard (main working area after onboarding) -->
+        <div id="dashboard-main" class="hidden">
+            <div class="editor-header">
+                <h2 id="dashboard-repo-name"></h2>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button id="generate-nav-btn" class="btn-generate">⚡ Generate Announcement</button>
+                    <button id="config-nav-btn" class="btn btn-secondary">⚙️ Settings</button>
+                    <button id="back-to-repos-dash" class="btn btn-secondary">← Repositories</button>
+                </div>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="dashboard-status" class="status-message hidden"></div>
+
+            <!-- Announcement Generation Section -->
+            <div id="announcement-section" class="announcement-section">
+                <h3 style="margin-bottom:16px;">Recent Commits</h3>
+                <p class="section-description">Select commits to include in your announcement:</p>
+                <div id="dashboard-commits" class="commit-list" style="margin-bottom:20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📝</div>
+                        <div class="empty-state-title">No commits loaded</div>
+                        <div class="empty-state-text">Connect a repository to see your recent player-facing commits here.</div>
+                    </div>
+                </div>
+                
+                <div style="text-align:center;margin-bottom:32px;">
+                    <button class="btn-generate" id="generate-btn">⚡ Generate Announcement from Selected Commits</button>
+                </div>
+
+                <!-- Announcement Composer -->
+                <div id="announcement-composer" class="announcement-composer hidden">
+                    <div class="announcement-composer-header">
+                        <h3>📝 Announcement Editor</h3>
+                        <span class="status-pill status-pill-success">Generated</span>
+                    </div>
+                    <div class="announcement-tabs">
+                        <button class="announcement-tab active" data-tab="edit">Edit</button>
+                        <button class="announcement-tab" data-tab="preview">Steam Preview</button>
+                    </div>
+                    <div class="announcement-content">
+                        <div id="tab-edit">
+                            <textarea class="announcement-textarea" id="announcement-text" 
+                                      placeholder="Your generated announcement will appear here..."></textarea>
+                        </div>
+                        <div id="tab-preview" class="hidden">
+                            <div class="steam-preview">
+                                <div class="steam-preview-header">
+                                    <span class="steam-preview-badge">Update</span>
+                                    <span class="steam-preview-title" id="preview-title">Announcement Title</span>
+                                </div>
+                                <div class="steam-preview-body" id="preview-body"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Image Upload (Drag & Drop) -->
+                    <div style="padding:0 20px 20px;">
+                        <label style="font-weight:600;display:block;margin-bottom:8px;">Screenshots</label>
+                        <div class="drop-zone" id="image-drop-zone">
+                            <div class="drop-zone-icon">📸</div>
+                            <div class="drop-zone-text">Drag &amp; drop screenshots here</div>
+                            <div class="drop-zone-hint">or click to browse · PNG, JPG up to 5MB</div>
+                            <input type="file" id="image-upload" accept="image/*" multiple style="display:none;">
+                        </div>
+                        <div class="image-preview-grid" id="image-preview-grid"></div>
+                    </div>
+
+                    <div class="form-actions" style="padding:0 20px 20px;margin-top:0;border-top:1px solid var(--border);padding-top:16px;">
+                        <button class="btn btn-primary btn-large" id="approve-btn">✅ Approve &amp; Send to Discord</button>
+                        <button class="btn btn-secondary" id="copy-btn">📋 Copy to Clipboard</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Configuration Editor -->
         <div id="config-editor" class="hidden">
             <div class="editor-header">
                 <h2 id="current-repo-name"></h2>
-                <button id="back-to-repos" class="btn btn-secondary">← Back to Repositories</button>
+                <div style="display:flex;gap:8px;">
+                    <button id="back-to-dashboard" class="btn btn-secondary">← Back to Dashboard</button>
+                    <button id="back-to-repos" class="btn btn-secondary">← Repositories</button>
+                </div>
             </div>
 
             <!-- Status Messages -->
@@ -225,7 +480,7 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2025 WishlistOps | <a href="https://github.com/your-org/wishlistops">GitHub</a> | <a href="docs.html">Documentation</a></p>
+            <p>&copy; 2026 WishlistOps | <a href="https://github.com/jamesthegreati/WishlistOps">GitHub</a> | <a href="docs.html">Documentation</a></p>
         </div>
     </footer>
 
