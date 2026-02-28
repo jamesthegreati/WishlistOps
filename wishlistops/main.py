@@ -28,6 +28,7 @@ Error Handling:
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -827,6 +828,12 @@ def main() -> None:
         help="Enable debug logging"
     )
     
+    env_port = os.getenv("PORT")
+    try:
+        default_port = int(env_port) if env_port else 8080
+    except ValueError:
+        default_port = 8080
+
     # Setup/Dashboard command
     setup_parser = subparsers.add_parser('setup', help='Launch web dashboard for setup and monitoring')
     setup_parser.add_argument(
@@ -838,8 +845,14 @@ def main() -> None:
     setup_parser.add_argument(
         "--port",
         type=int,
-        default=8080,
+        default=default_port,
         help="Port for web server (default: 8080)"
+    )
+    setup_parser.add_argument(
+        "--host",
+        type=str,
+        default=os.getenv("WISHLISTOPS_HOST", "127.0.0.1"),
+        help="Host for web server bind address (default: 127.0.0.1)"
     )
     
     args = parser.parse_args()
@@ -856,7 +869,7 @@ def main() -> None:
         try:
             from .web_server import run_server
             logger.info("Launching WishlistOps web dashboard...")
-            run_server(args.config, port=args.port)
+            run_server(args.config, host=args.host, port=args.port)
         except ImportError as e:
             logger.error(f"Web server dependencies not installed: {e}")
             logger.info("Install with: pip install wishlistops[web]")

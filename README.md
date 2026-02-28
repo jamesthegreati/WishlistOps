@@ -153,6 +153,8 @@ git push origin v1.2.0
 - **[Quick Start](docs/QUICK_START.md)** - Get started in 5 minutes
 - **[Launch Guide](docs/LAUNCH_GUIDE.md)** - Deploy to GitHub Actions or cloud
 - **[Steam API Notes](docs/STEAM_API_NOTES.md)** - Technical limitations and workarounds
+- **[Deployment Ready Guide](docs/DEPLOYMENT_READY_GUIDE.md)** - Docker + Render/Railway deployment setup
+- **[Marketing Automation Playbook](docs/MARKETING_AUTOMATION_PLAYBOOK.md)** - Automated GTM strategy for indie dev audience
 
 ---
 
@@ -206,7 +208,7 @@ MIT License - see [LICENSE](LICENSE) for details
 ## 💬 Support
 
 - **GitHub Issues**: [Report bugs](https://github.com/jamesthegreati/WishlistOps/issues)
-- **Documentation**: [User Guide](USER_GUIDE.md)
+- **Documentation**: [Deployment & Growth Docs](docs/DEPLOYMENT_READY_GUIDE.md)
 - **Discord**: [Join community](https://discord.gg/wishlistops) _(coming soon)_
 
 ---

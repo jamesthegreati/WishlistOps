@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: wishlistops
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: WISHLISTOPS_HOST
+        value: 0.0.0.0
+      - key: WISHLISTOPS_CONFIG
+        value: wishlistops/config.json
+      - key: GOOGLE_AI_KEY
+        sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+      - key: STEAM_API_KEY
+        sync: false

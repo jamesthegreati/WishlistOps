@@ -360,11 +360,12 @@ def _convert_git_commit(git_commit) -> "CommitModel":
     )
 
 
-def run_server(config_path: Path, port: int = 8080) -> None:
+def run_server(config_path: Path, host: str = "127.0.0.1", port: int = 8080) -> None:
     """Run a small aiohttp server that serves the dashboard UI.
 
     Args:
         config_path: Path to config.json (currently unused; reserved for future API endpoints).
+        host: Host interface to bind to.
         port: Port to bind to.
     """
 
@@ -945,4 +946,4 @@ def run_server(config_path: Path, port: int = 8080) -> None:
         mimetypes.add_type("application/javascript", ".js")
         app.router.add_static("/static/", path=static_dir, name="static")
 
-    web.run_app(app, host="127.0.0.1", port=port)
+    web.run_app(app, host=host, port=port)
