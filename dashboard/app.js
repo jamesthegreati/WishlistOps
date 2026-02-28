@@ -1,7 +1,8 @@
 /**
  * WishlistOps Dashboard - JavaScript Application
  * 
- * Handles GitHub OAuth, API interactions, and configuration management.
+ * Handles GitHub OAuth, API interactions, configuration management,
+ * command palette, theme toggle, onboarding wizard, and announcement generation.
  * Pure vanilla JavaScript (no framework dependencies).
  * 
  * Architecture: Static site with GitHub API integration
@@ -16,15 +17,14 @@ const CONFIG = {
     // GitHub API
     githubApiUrl: 'https://api.github.com',
     
-    // OAuth Configuration (for production, use GitHub App)
-    // For now, we'll use personal access tokens for simplicity
-    // TODO: Implement full OAuth flow for production
-    
     // Local storage keys
     storageKeys: {
         accessToken: 'wishlistops_github_token',
         currentUser: 'wishlistops_current_user',
-        currentRepo: 'wishlistops_current_repo'
+        currentRepo: 'wishlistops_current_repo',
+        theme: 'wishlistops_theme',
+        onboardingComplete: 'wishlistops_onboarding_complete',
+        voiceSettings: 'wishlistops_voice_settings'
     },
     
     // WishlistOps config file path
@@ -41,6 +41,8 @@ class AppState {
         this.accessToken = localStorage.getItem(CONFIG.storageKeys.accessToken);
         this.currentUser = JSON.parse(localStorage.getItem(CONFIG.storageKeys.currentUser) || 'null');
         this.currentRepo = JSON.parse(localStorage.getItem(CONFIG.storageKeys.currentRepo) || 'null');
+        this.onboardingComplete = localStorage.getItem(CONFIG.storageKeys.onboardingComplete) === 'true';
+        this.voiceSettings = JSON.parse(localStorage.getItem(CONFIG.storageKeys.voiceSettings) || 'null');
     }
     
     setAccessToken(token) {
@@ -57,14 +59,28 @@ class AppState {
         this.currentRepo = repo;
         localStorage.setItem(CONFIG.storageKeys.currentRepo, JSON.stringify(repo));
     }
+
+    setOnboardingComplete(val) {
+        this.onboardingComplete = val;
+        localStorage.setItem(CONFIG.storageKeys.onboardingComplete, String(val));
+    }
+
+    setVoiceSettings(settings) {
+        this.voiceSettings = settings;
+        localStorage.setItem(CONFIG.storageKeys.voiceSettings, JSON.stringify(settings));
+    }
     
     clearAuth() {
         this.accessToken = null;
         this.currentUser = null;
         this.currentRepo = null;
+        this.onboardingComplete = false;
+        this.voiceSettings = null;
         localStorage.removeItem(CONFIG.storageKeys.accessToken);
         localStorage.removeItem(CONFIG.storageKeys.currentUser);
         localStorage.removeItem(CONFIG.storageKeys.currentRepo);
+        localStorage.removeItem(CONFIG.storageKeys.onboardingComplete);
+        localStorage.removeItem(CONFIG.storageKeys.voiceSettings);
     }
     
     isAuthenticated() {
@@ -119,6 +135,10 @@ class GitHubAPI {
     async getRepoContents(owner, repo, path) {
         return this.request(`/repos/${owner}/${repo}/contents/${path}`);
     }
+
+    async getRepoCommits(owner, repo, perPage = 10) {
+        return this.request(`/repos/${owner}/${repo}/commits?per_page=${perPage}`);
+    }
     
     async updateFile(owner, repo, path, content, message, sha) {
         return this.request(`/repos/${owner}/${repo}/contents/${path}`, {
@@ -128,9 +148,204 @@ class GitHubAPI {
             },
             body: JSON.stringify({
                 message,
-                content: btoa(unescape(encodeURIComponent(content))), // Base64 encode
+                content: btoa(unescape(encodeURIComponent(content))),
                 sha
             })
+        });
+    }
+}
+
+
+// ========================================
+// Theme Manager
+// ========================================
+
+class ThemeManager {
+    constructor() {
+        this.toggle = document.getElementById('theme-toggle');
+        const saved = localStorage.getItem(CONFIG.storageKeys.theme) || 'dark';
+        this.setTheme(saved);
+        this.toggle.addEventListener('click', () => this.toggleTheme());
+    }
+
+    setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem(CONFIG.storageKeys.theme, theme);
+        this.toggle.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
+
+    toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        this.setTheme(current === 'dark' ? 'light' : 'dark');
+    }
+}
+
+
+// ========================================
+// Command Palette
+// ========================================
+
+class CommandPalette {
+    constructor(uiManager) {
+        this.ui = uiManager;
+        this.overlay = document.getElementById('command-palette-overlay');
+        this.input = document.getElementById('command-input');
+        this.results = document.getElementById('command-results');
+        this.activeIndex = 0;
+        this.commands = this.getCommands();
+
+        document.getElementById('cmd-k-hint').addEventListener('click', () => this.open());
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                this.toggle();
+            }
+            if (e.key === 'Escape' && !this.overlay.classList.contains('hidden')) {
+                this.close();
+            }
+        });
+
+        this.input.addEventListener('input', () => this.render());
+        this.input.addEventListener('keydown', (e) => this.handleKeyNav(e));
+        this.overlay.addEventListener('click', (e) => {
+            if (e.target === this.overlay) this.close();
+        });
+    }
+
+    getCommands() {
+        return [
+            { icon: '⚡', label: 'Generate Announcement', action: () => this.ui.showDashboard(), shortcut: '' },
+            { icon: '⚙️', label: 'Open Settings', action: () => this.ui.showConfigEditor(), shortcut: '' },
+            { icon: '📂', label: 'Switch Repository', action: () => this.ui.showRepoSelection(), shortcut: '' },
+            { icon: '🌙', label: 'Toggle Theme', action: () => document.getElementById('theme-toggle').click(), shortcut: '' },
+            { icon: '📋', label: 'Preview JSON Config', action: () => { if (this.ui.elements.previewBtn) this.ui.showPreview(); }, shortcut: '' },
+            { icon: '🔑', label: 'Sign In / Sign Out', action: () => {
+                if (state.isAuthenticated()) { this.ui.handleSignOut(); } else { this.ui.handleSignIn(); }
+            }, shortcut: '' },
+        ];
+    }
+
+    toggle() {
+        if (this.overlay.classList.contains('hidden')) { this.open(); } else { this.close(); }
+    }
+
+    open() {
+        this.overlay.classList.remove('hidden');
+        this.input.value = '';
+        this.activeIndex = 0;
+        this.render();
+        this.input.focus();
+    }
+
+    close() {
+        this.overlay.classList.add('hidden');
+    }
+
+    render() {
+        const query = this.input.value.toLowerCase();
+        const filtered = this.commands.filter(c => c.label.toLowerCase().includes(query));
+        this.results.innerHTML = '';
+        filtered.forEach((cmd, i) => {
+            const div = document.createElement('div');
+            div.className = 'command-item' + (i === this.activeIndex ? ' active' : '');
+            div.innerHTML = `
+                <span class="command-item-icon">${cmd.icon}</span>
+                <span class="command-item-label">${cmd.label}</span>
+                ${cmd.shortcut ? `<span class="command-item-shortcut">${cmd.shortcut}</span>` : ''}
+            `;
+            div.addEventListener('click', () => { this.close(); cmd.action(); });
+            div.addEventListener('mouseenter', () => {
+                this.activeIndex = i;
+                this.render();
+            });
+            this.results.appendChild(div);
+        });
+    }
+
+    handleKeyNav(e) {
+        const items = this.results.querySelectorAll('.command-item');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.activeIndex = Math.min(this.activeIndex + 1, items.length - 1);
+            this.render();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.activeIndex = Math.max(this.activeIndex - 1, 0);
+            this.render();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (items[this.activeIndex]) items[this.activeIndex].click();
+        }
+    }
+}
+
+
+// ========================================
+// Image Upload Manager
+// ========================================
+
+class ImageUploadManager {
+    constructor() {
+        this.dropZone = document.getElementById('image-drop-zone');
+        this.fileInput = document.getElementById('image-upload');
+        this.previewGrid = document.getElementById('image-preview-grid');
+        this.files = [];
+
+        if (!this.dropZone) return;
+
+        this.dropZone.addEventListener('click', () => this.fileInput.click());
+        this.dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            this.dropZone.classList.add('dragover');
+        });
+        this.dropZone.addEventListener('dragleave', () => {
+            this.dropZone.classList.remove('dragover');
+        });
+        this.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            this.dropZone.classList.remove('dragover');
+            this.addFiles(e.dataTransfer.files);
+        });
+        this.fileInput.addEventListener('change', () => {
+            this.addFiles(this.fileInput.files);
+            this.fileInput.value = '';
+        });
+    }
+
+    addFiles(fileList) {
+        for (const file of fileList) {
+            if (!file.type.startsWith('image/')) continue;
+            if (file.size > 5 * 1024 * 1024) continue;
+            this.files.push(file);
+        }
+        this.renderPreviews();
+    }
+
+    removeFile(index) {
+        this.files.splice(index, 1);
+        this.renderPreviews();
+    }
+
+    renderPreviews() {
+        if (!this.previewGrid) return;
+        this.previewGrid.innerHTML = '';
+        this.files.forEach((file, i) => {
+            const item = document.createElement('div');
+            item.className = 'image-preview-item';
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.alt = file.name;
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-btn';
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeFile(i);
+            });
+            item.appendChild(img);
+            item.appendChild(removeBtn);
+            this.previewGrid.appendChild(item);
         });
     }
 }
@@ -147,7 +362,10 @@ class UIManager {
             welcomeScreen: document.getElementById('welcome-screen'),
             repoSelection: document.getElementById('repo-selection'),
             configEditor: document.getElementById('config-editor'),
+            dashboardMain: document.getElementById('dashboard-main'),
+            onboardingWizard: document.getElementById('onboarding-wizard'),
             loading: document.getElementById('loading'),
+            skeletonLoading: document.getElementById('skeleton-loading'),
             
             // Auth
             signInBtn: document.getElementById('sign-in-btn'),
@@ -162,6 +380,7 @@ class UIManager {
             // Config editor
             currentRepoName: document.getElementById('current-repo-name'),
             backToRepos: document.getElementById('back-to-repos'),
+            backToDashboard: document.getElementById('back-to-dashboard'),
             configForm: document.getElementById('config-form'),
             statusMessage: document.getElementById('status-message'),
             
@@ -186,7 +405,17 @@ class UIManager {
             // Modal
             previewModal: document.getElementById('preview-modal'),
             previewJson: document.getElementById('preview-json'),
-            previewBtn: document.getElementById('preview-btn')
+            previewBtn: document.getElementById('preview-btn'),
+
+            // Dashboard
+            dashboardRepoName: document.getElementById('dashboard-repo-name'),
+            dashboardCommits: document.getElementById('dashboard-commits'),
+            announcementComposer: document.getElementById('announcement-composer'),
+            announcementText: document.getElementById('announcement-text'),
+            generateBtn: document.getElementById('generate-btn'),
+
+            // Onboarding
+            wizardReposList: document.getElementById('wizard-repos-list'),
         };
         
         this.setupEventListeners();
@@ -199,6 +428,12 @@ class UIManager {
         
         // Navigation
         this.elements.backToRepos.addEventListener('click', () => this.showRepoSelection());
+        this.elements.backToDashboard.addEventListener('click', () => this.showDashboard());
+        document.getElementById('back-to-repos-dash').addEventListener('click', () => this.showRepoSelection());
+        document.getElementById('config-nav-btn').addEventListener('click', () => this.showConfigEditor());
+        document.getElementById('generate-nav-btn').addEventListener('click', () => {
+            document.getElementById('announcement-section').scrollIntoView({ behavior: 'smooth' });
+        });
         
         // Form
         this.elements.configForm.addEventListener('submit', (e) => this.handleFormSubmit(e));
@@ -220,12 +455,110 @@ class UIManager {
             });
         });
         
-        // Click outside modal to close
         this.elements.previewModal.addEventListener('click', (e) => {
             if (e.target === this.elements.previewModal) {
                 this.elements.previewModal.classList.add('hidden');
             }
         });
+
+        // Announcement tabs
+        document.querySelectorAll('.announcement-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.announcement-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const tabName = tab.getAttribute('data-tab');
+                document.getElementById('tab-edit').classList.toggle('hidden', tabName !== 'edit');
+                document.getElementById('tab-preview').classList.toggle('hidden', tabName !== 'preview');
+                if (tabName === 'preview') this.updateSteamPreview();
+            });
+        });
+
+        // Generate announcement
+        this.elements.generateBtn.addEventListener('click', () => this.generateAnnouncement());
+
+        // Copy to clipboard
+        document.getElementById('copy-btn').addEventListener('click', () => {
+            const text = this.elements.announcementText.value;
+            navigator.clipboard.writeText(text).then(() => {
+                this.showStatus('Copied to clipboard! 📋', 'success');
+            });
+        });
+
+        // Approve button
+        document.getElementById('approve-btn').addEventListener('click', () => {
+            this.showStatus('Sent to Discord for approval! ✅', 'success');
+        });
+
+        // Onboarding wizard
+        this.setupOnboardingWizard();
+    }
+
+    setupOnboardingWizard() {
+        // Voice option selection
+        document.querySelectorAll('.voice-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                document.querySelectorAll('.voice-option').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+                document.getElementById('wizard-custom-tone').value = '';
+            });
+        });
+
+        // Wizard navigation
+        document.getElementById('wizard-next-1').addEventListener('click', () => this.wizardGoToStep(2));
+        document.getElementById('wizard-back-2').addEventListener('click', () => this.wizardGoToStep(1));
+        document.getElementById('wizard-next-2').addEventListener('click', () => {
+            this.saveVoiceFromWizard();
+            this.wizardGoToStep(3);
+        });
+        document.getElementById('wizard-back-3').addEventListener('click', () => this.wizardGoToStep(2));
+        document.getElementById('wizard-generate').addEventListener('click', () => {
+            state.setOnboardingComplete(true);
+            this.showDashboard();
+            this.generateAnnouncement();
+        });
+    }
+
+    saveVoiceFromWizard() {
+        const selected = document.querySelector('.voice-option.selected');
+        const customTone = document.getElementById('wizard-custom-tone').value.trim();
+        if (selected) {
+            state.setVoiceSettings({
+                tone: selected.getAttribute('data-tone'),
+                personality: selected.getAttribute('data-personality')
+            });
+        } else if (customTone) {
+            state.setVoiceSettings({ tone: customTone, personality: 'indie developer' });
+        }
+    }
+
+    wizardGoToStep(step) {
+        for (let i = 1; i <= 3; i++) {
+            document.getElementById(`wizard-step-${i}`).classList.toggle('hidden', i !== step);
+            const dot = document.getElementById(`wizard-dot-${i}`);
+            dot.classList.remove('active', 'completed');
+            if (i < step) dot.classList.add('completed');
+            if (i === step) dot.classList.add('active');
+        }
+        for (let i = 1; i <= 2; i++) {
+            const line = document.getElementById(`wizard-line-${i}`);
+            line.classList.toggle('completed', i < step);
+        }
+
+        if (step === 3 && state.currentRepo) {
+            this.loadCommitsForWizard();
+        }
+    }
+
+    async loadCommitsForWizard() {
+        try {
+            const api = new GitHubAPI(state.accessToken);
+            const commits = await api.getRepoCommits(
+                state.currentRepo.owner.login, state.currentRepo.name, 5
+            );
+            this.renderCommitList(document.getElementById('wizard-commits'), commits);
+        } catch (e) {
+            // Show empty state on error
+        }
     }
     
     showScreen(screenName) {
@@ -233,8 +566,10 @@ class UIManager {
         this.elements.welcomeScreen.classList.add('hidden');
         this.elements.repoSelection.classList.add('hidden');
         this.elements.configEditor.classList.add('hidden');
+        this.elements.dashboardMain.classList.add('hidden');
+        this.elements.onboardingWizard.classList.add('hidden');
+        this.elements.skeletonLoading.classList.add('hidden');
         
-        // Show requested screen
         switch (screenName) {
             case 'welcome':
                 this.elements.welcomeScreen.classList.remove('hidden');
@@ -245,6 +580,12 @@ class UIManager {
             case 'editor':
                 this.elements.configEditor.classList.remove('hidden');
                 break;
+            case 'dashboard':
+                this.elements.dashboardMain.classList.remove('hidden');
+                break;
+            case 'onboarding':
+                this.elements.onboardingWizard.classList.remove('hidden');
+                break;
         }
     }
     
@@ -254,6 +595,10 @@ class UIManager {
         } else {
             this.elements.loading.classList.add('hidden');
         }
+    }
+
+    showSkeleton(show = true) {
+        this.elements.skeletonLoading.classList.toggle('hidden', !show);
     }
     
     updateAuthUI() {
@@ -269,14 +614,17 @@ class UIManager {
     }
     
     showStatus(message, type = 'success') {
-        this.elements.statusMessage.textContent = message;
-        this.elements.statusMessage.className = `status-message status-${type}`;
-        this.elements.statusMessage.classList.remove('hidden');
-        
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-            this.elements.statusMessage.classList.add('hidden');
-        }, 5000);
+        // Use the visible status message element
+        const el = document.getElementById('dashboard-status').classList.contains('hidden') 
+            ? this.elements.statusMessage 
+            : document.getElementById('dashboard-status');
+        const target = this.elements.dashboardMain.classList.contains('hidden') 
+            ? this.elements.statusMessage 
+            : document.getElementById('dashboard-status');
+        target.textContent = message;
+        target.className = `status-message status-${type}`;
+        target.classList.remove('hidden');
+        setTimeout(() => { target.classList.add('hidden'); }, 5000);
     }
     
     async handleSignIn() {
@@ -292,7 +640,7 @@ class UIManager {
         
         if (!token) return;
         
-        this.showLoading(true);
+        this.showSkeleton(true);
         
         try {
             const api = new GitHubAPI(token);
@@ -302,12 +650,20 @@ class UIManager {
             state.setCurrentUser(user);
             
             this.updateAuthUI();
-            await this.showRepoSelection();
+
+            // Show onboarding for first-time users, repo selection for returning users
+            if (!state.onboardingComplete) {
+                await this.showOnboarding();
+            } else if (state.currentRepo) {
+                await this.showDashboard();
+            } else {
+                await this.showRepoSelection();
+            }
             
         } catch (error) {
             alert(`Authentication failed: ${error.message}`);
         } finally {
-            this.showLoading(false);
+            this.showSkeleton(false);
         }
     }
     
@@ -316,21 +672,56 @@ class UIManager {
         this.updateAuthUI();
         this.showScreen('welcome');
     }
+
+    async showOnboarding() {
+        this.showScreen('onboarding');
+        this.wizardGoToStep(1);
+        this.showSkeleton(true);
+
+        try {
+            const api = new GitHubAPI(state.accessToken);
+            const repos = await api.getUserRepos();
+            this.renderWizardReposList(repos);
+        } catch (error) {
+            this.showStatus(`Failed to load repositories: ${error.message}`, 'error');
+        } finally {
+            this.showSkeleton(false);
+        }
+    }
+
+    renderWizardReposList(repos) {
+        this.elements.wizardReposList.innerHTML = '';
+        if (repos.length === 0) {
+            this.elements.wizardReposList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-text">No repositories found</div></div>';
+            return;
+        }
+        repos.slice(0, 10).forEach(repo => {
+            const card = document.createElement('div');
+            card.className = 'repo-card';
+            card.innerHTML = `<h3>${repo.name}</h3><p>${repo.description || 'No description'}</p>`;
+            card.style.cssText = `background:var(--surface-elevated);padding:16px;border-radius:var(--radius-sm);border:2px solid var(--border);cursor:pointer;transition:all 0.2s;margin-bottom:8px;`;
+            card.addEventListener('click', () => {
+                document.querySelectorAll('#wizard-repos-list .repo-card').forEach(c => c.style.borderColor = 'var(--border)');
+                card.style.borderColor = 'var(--primary-color)';
+                state.setCurrentRepo(repo);
+                document.getElementById('wizard-next-1').disabled = false;
+            });
+            this.elements.wizardReposList.appendChild(card);
+        });
+    }
     
     async showRepoSelection() {
         this.showScreen('repos');
-        this.showLoading(true);
+        this.showSkeleton(true);
         
         try {
             const api = new GitHubAPI(state.accessToken);
             const repos = await api.getUserRepos();
-            
             this.renderReposList(repos);
-            
         } catch (error) {
             this.showStatus(`Failed to load repositories: ${error.message}`, 'error');
         } finally {
-            this.showLoading(false);
+            this.showSkeleton(false);
         }
     }
     
@@ -338,7 +729,7 @@ class UIManager {
         this.elements.reposList.innerHTML = '';
         
         if (repos.length === 0) {
-            this.elements.reposList.innerHTML = '<p>No repositories found.</p>';
+            this.elements.reposList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-title">No repositories found</div><div class="empty-state-text">Create a repository on GitHub to get started.</div></div>';
             return;
         }
         
@@ -348,15 +739,15 @@ class UIManager {
             repoCard.innerHTML = `
                 <h3>${repo.name}</h3>
                 <p>${repo.description || 'No description'}</p>
-                <small>Updated: ${new Date(repo.updated_at).toLocaleDateString()}</small>
+                <small class="mono">${new Date(repo.updated_at).toLocaleDateString()}</small>
             `;
             repoCard.style.cssText = `
                 background: var(--surface);
-                padding: 20px;
-                border-radius: 8px;
+                padding: var(--card-padding);
+                border-radius: var(--radius-md);
                 border: 1px solid var(--border);
                 cursor: pointer;
-                transition: all 0.3s;
+                transition: all 0.2s;
             `;
             repoCard.addEventListener('mouseover', () => {
                 repoCard.style.borderColor = 'var(--primary-color)';
@@ -372,63 +763,156 @@ class UIManager {
     
     async selectRepo(repo) {
         state.setCurrentRepo(repo);
-        this.elements.currentRepoName.textContent = repo.full_name;
-        
-        this.showScreen('editor');
-        this.showLoading(true);
-        
-        try {
-            await this.loadConfig(repo);
-        } catch (error) {
-            if (error.message.includes('404')) {
-                this.showStatus('No WishlistOps config found. Create one below!', 'info');
-            } else {
-                this.showStatus(`Failed to load config: ${error.message}`, 'error');
-            }
-        } finally {
-            this.showLoading(false);
+
+        // If onboarding is complete, go to dashboard; otherwise let wizard handle it
+        if (state.onboardingComplete) {
+            await this.showDashboard();
         }
+    }
+
+    async showDashboard() {
+        if (!state.currentRepo) {
+            this.showRepoSelection();
+            return;
+        }
+        this.showScreen('dashboard');
+        this.elements.dashboardRepoName.textContent = state.currentRepo.full_name;
+
+        // Load commits
+        this.showSkeleton(true);
+        try {
+            const api = new GitHubAPI(state.accessToken);
+            const commits = await api.getRepoCommits(
+                state.currentRepo.owner.login, state.currentRepo.name, 10
+            );
+            this.renderCommitList(this.elements.dashboardCommits, commits);
+        } catch (error) {
+            // Show error but don't crash
+            this.elements.dashboardCommits.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Could not load commits</div><div class="empty-state-text">${error.message}</div></div>`;
+        } finally {
+            this.showSkeleton(false);
+        }
+    }
+
+    showConfigEditor() {
+        if (!state.currentRepo) return;
+        this.elements.currentRepoName.textContent = state.currentRepo.full_name;
+        this.showScreen('editor');
+
+        // Populate voice settings if saved from wizard
+        if (state.voiceSettings) {
+            this.elements.tone.value = state.voiceSettings.tone || '';
+            this.elements.personality.value = state.voiceSettings.personality || '';
+        }
+
+        // Try to load existing config
+        this.loadConfig(state.currentRepo).catch(() => {
+            this.showStatus('No WishlistOps config found. Create one below!', 'info');
+        });
+    }
+
+    renderCommitList(container, commits) {
+        container.innerHTML = '';
+        if (!commits || commits.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><div class="empty-state-title">No commits found</div><div class="empty-state-text">Push some commits to your repository first.</div></div>';
+            return;
+        }
+        commits.forEach(c => {
+            const msg = c.commit.message.split('\n')[0];
+            const badge = this.getCommitBadge(msg);
+            const sha = c.sha.substring(0, 7);
+            const date = new Date(c.commit.author.date).toLocaleDateString();
+            const item = document.createElement('label');
+            item.className = 'commit-item';
+            item.innerHTML = `
+                <input type="checkbox" checked value="${c.sha}">
+                ${badge}
+                <span class="commit-message">${this.escapeHtml(msg)}</span>
+                <span class="commit-hash">${sha}</span>
+                <span class="commit-date">${date}</span>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    getCommitBadge(message) {
+        const lower = message.toLowerCase();
+        if (lower.startsWith('feat')) return '<span class="commit-badge commit-badge-feat">feat</span>';
+        if (lower.startsWith('fix')) return '<span class="commit-badge commit-badge-fix">fix</span>';
+        if (lower.startsWith('docs')) return '<span class="commit-badge commit-badge-docs">docs</span>';
+        if (lower.startsWith('style')) return '<span class="commit-badge commit-badge-style">style</span>';
+        if (lower.startsWith('chore')) return '<span class="commit-badge commit-badge-chore">chore</span>';
+        return '<span class="commit-badge commit-badge-chore">other</span>';
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    generateAnnouncement() {
+        // Collect selected commits
+        const checkboxes = this.elements.dashboardCommits.querySelectorAll('input[type="checkbox"]:checked');
+        if (checkboxes.length === 0) {
+            this.showStatus('Select at least one commit to generate from.', 'error');
+            return;
+        }
+
+        const commitMessages = [];
+        checkboxes.forEach(cb => {
+            const item = cb.closest('.commit-item');
+            const msg = item.querySelector('.commit-message').textContent;
+            commitMessages.push(msg);
+        });
+
+        // Generate a sample announcement (in production this calls AI backend)
+        const gameName = state.currentRepo.name.replace(/[-_]/g, ' ');
+        const tone = state.voiceSettings?.tone || 'casual and excited';
+        const features = commitMessages.map(m => `• ${m}`).join('\n');
+        
+        const announcement = `🎮 ${gameName} — New Update!\n\nHey everyone! We've been hard at work and have some exciting updates to share:\n\n${features}\n\nWe're really excited about these changes and can't wait to hear what you think. Drop us a comment below!\n\n— The ${gameName} Team`;
+
+        this.elements.announcementText.value = announcement;
+        this.elements.announcementComposer.classList.remove('hidden');
+        this.elements.announcementComposer.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    updateSteamPreview() {
+        const text = this.elements.announcementText.value;
+        const lines = text.split('\n');
+        const title = lines[0] || 'Untitled Announcement';
+        const body = lines.slice(1).join('\n').trim();
+        document.getElementById('preview-title').textContent = title;
+        document.getElementById('preview-body').textContent = body;
     }
     
     async loadConfig(repo) {
         const api = new GitHubAPI(state.accessToken);
         const fileData = await api.getRepoContents(repo.owner.login, repo.name, CONFIG.configPath);
         
-        // Decode base64 content
         const content = atob(fileData.content);
         const config = JSON.parse(content);
         
-        // Populate form
         this.populateForm(config);
-        
-        // Store SHA for updates
         this.currentConfigSha = fileData.sha;
     }
     
     populateForm(config) {
-        // Steam
         this.elements.steamAppId.value = config.steam?.app_id || '';
         this.elements.steamAppName.value = config.steam?.app_name || '';
-        
-        // Branding
         this.elements.artStyle.value = config.branding?.art_style || '';
         this.elements.colorPalette.value = config.branding?.color_palette?.join(', ') || '';
         this.elements.logoPosition.value = config.branding?.logo_position || 'top-right';
         this.elements.logoSize.value = config.branding?.logo_size_percent || 25;
         this.elements.logoSizeValue.textContent = `${config.branding?.logo_size_percent || 25}%`;
-        
-        // Voice
         this.elements.tone.value = config.voice?.tone || '';
         this.elements.personality.value = config.voice?.personality || '';
         this.elements.avoidPhrases.value = config.voice?.avoid_phrases?.join(', ') || '';
-        
-        // Automation
         this.elements.automationEnabled.checked = config.automation?.enabled !== false;
         this.elements.triggerOnTags.checked = config.automation?.trigger_on_tags !== false;
         this.elements.minDays.value = config.automation?.min_days_between_posts || 7;
         this.elements.requireApproval.checked = config.automation?.require_approval !== false;
-        
-        // AI
         this.elements.temperature.value = config.ai?.temperature || 0.7;
         this.elements.temperatureValue.textContent = config.ai?.temperature || 0.7;
     }
@@ -497,7 +981,6 @@ class UIManager {
             
             const api = new GitHubAPI(state.accessToken);
             
-            // Check if file exists
             let sha = this.currentConfigSha;
             if (!sha) {
                 try {
@@ -508,7 +991,6 @@ class UIManager {
                     );
                     sha = fileData.sha;
                 } catch (error) {
-                    // File doesn't exist, that's ok for creation
                     sha = null;
                 }
             }
@@ -542,17 +1024,21 @@ class UIManager {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    const themeManager = new ThemeManager();
     const ui = new UIManager();
+    const commandPalette = new CommandPalette(ui);
+    const imageUpload = new ImageUploadManager();
     
     // Check if already authenticated
     if (state.isAuthenticated()) {
         ui.updateAuthUI();
         
-        // If we have a current repo, show editor
-        if (state.currentRepo) {
-            ui.selectRepo(state.currentRepo);
-        } else {
+        if (state.onboardingComplete && state.currentRepo) {
+            ui.showDashboard();
+        } else if (state.onboardingComplete) {
             ui.showRepoSelection();
+        } else {
+            ui.showOnboarding();
         }
     } else {
         ui.showScreen('welcome');
