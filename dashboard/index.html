@@ -6,7 +6,7 @@
     <title>WishlistOps - Steam Marketing Automation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* ============================================
            WishlistOps Dashboard v2.1 - Premium Dark Theme
@@ -930,6 +930,352 @@
         .view {
             animation: fadeIn 0.3s ease-out;
         }
+        
+        /* ============================================
+           Design System Additions (per Strategy Doc §4.4)
+           ============================================ */
+        
+        :root {
+            /* Focus and a11y */
+            --focus-ring: 0 0 0 2px var(--accent-primary);
+            
+            /* Status colors for workflow states */
+            --status-success: #10b981;
+            --status-pending: #f59e0b;
+            --status-active: #6366f1;
+            --status-error: #ef4444;
+            
+            /* Semantic spacing for cards */
+            --card-padding: 20px;
+            --card-gap: 16px;
+        }
+        
+        /* JetBrains Mono for data/code elements (per Strategy Doc §4.3) */
+        code, .mono, .data-value, .commit-example, .steam-preview-body pre {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+        
+        /* Focus ring for a11y */
+        *:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+            border-radius: var(--radius-sm);
+        }
+        
+        /* ============================================
+           Animated Status Pills (per Strategy Doc §4.3)
+           ============================================ */
+        
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .status-pill::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .status-pill-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--status-success);
+        }
+        .status-pill-success::before { background: var(--status-success); animation: pulse 2s infinite; }
+        
+        .status-pill-pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--status-pending);
+        }
+        .status-pill-pending::before { background: var(--status-pending); animation: pulse 1.5s infinite; }
+        
+        .status-pill-active {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--status-active);
+        }
+        .status-pill-active::before { background: var(--status-active); animation: pulse 2s infinite; }
+        
+        .status-pill-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--status-error);
+        }
+        .status-pill-error::before { background: var(--status-error); }
+        
+        /* ============================================
+           "No AI Slop" Badge (per Strategy Doc §7.3)
+           ============================================ */
+        
+        .anti-slop-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: var(--radius-full);
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            letter-spacing: 0.02em;
+        }
+        
+        .anti-slop-badge .icon {
+            font-size: 0.9rem;
+        }
+        
+        /* ============================================
+           Keyboard Shortcut Hints
+           ============================================ */
+        
+        .kbd {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-highlight);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            box-shadow: 0 1px 0 var(--border-color);
+        }
+        
+        .shortcut-hint {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: auto;
+            opacity: 0.6;
+        }
+        
+        /* ============================================
+           Command Palette (per Strategy Doc §4.1 & §4.3)
+           ============================================ */
+        
+        .command-palette-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 20vh;
+            animation: fadeIn 0.15s ease-out;
+        }
+        
+        .command-palette-overlay.hidden {
+            display: none;
+        }
+        
+        .command-palette {
+            width: 560px;
+            max-width: 90vw;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-highlight);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        
+        .command-palette-input-wrapper {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-bottom: 1px solid var(--border-subtle);
+            gap: var(--spacing-sm);
+        }
+        
+        .command-palette-input-wrapper .search-icon {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        
+        .command-palette-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+        }
+        
+        .command-palette-input::placeholder {
+            color: var(--text-dim);
+        }
+        
+        .command-palette-results {
+            max-height: 320px;
+            overflow-y: auto;
+            padding: var(--spacing-sm);
+        }
+        
+        .command-palette-group {
+            padding: var(--spacing-xs) var(--spacing-md);
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            margin-top: var(--spacing-xs);
+        }
+        
+        .command-palette-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .command-palette-item:hover,
+        .command-palette-item.selected {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .command-palette-item .icon {
+            width: 24px;
+            text-align: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .command-palette-item .label {
+            flex: 1;
+        }
+        
+        .command-palette-item .shortcut {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .command-palette-footer {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        
+        .command-palette-footer span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .command-palette-empty {
+            padding: var(--spacing-xl);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        /* ============================================
+           Steam Announcement Preview (per Strategy Doc §4.2)
+           ============================================ */
+        
+        .steam-preview-container {
+            margin-top: var(--spacing-xl);
+        }
+        
+        .steam-preview {
+            background: #1b2838;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid #2a475e;
+            max-width: 700px;
+        }
+        
+        .steam-preview-header {
+            background: #2a475e;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .steam-preview-header .steam-icon {
+            font-size: 1.1rem;
+        }
+        
+        .steam-preview-header .game-name {
+            color: #c6d4df;
+            font-weight: 600;
+        }
+        
+        .steam-preview-header .event-type {
+            margin-left: auto;
+            color: #8f98a0;
+            font-size: 0.75rem;
+        }
+        
+        .steam-preview-title {
+            padding: 16px 16px 8px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        
+        .steam-preview-body {
+            padding: 8px 16px 16px;
+            color: #acb2b8;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        
+        .steam-preview-body pre {
+            background: #171a21;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        
+        .steam-preview-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #2a475e;
+            color: #8f98a0;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .steam-preview-placeholder {
+            padding: 40px;
+            text-align: center;
+            color: #8f98a0;
+        }
+        
+        .steam-preview-placeholder .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body>
@@ -942,6 +1288,13 @@
                 <span class="logo-badge">v0.2.0</span>
             </div>
             <div class="header-actions">
+                <div class="anti-slop-badge" title="AI content is filtered to remove generic, low-quality output">
+                    <span class="icon">🛡️</span> No AI Slop
+                </div>
+                <button class="btn btn-secondary" id="cmd-palette-trigger" onclick="toggleCommandPalette()" title="Command Palette (Ctrl+K)" style="gap: 6px; font-size: 0.8rem;">
+                    🔍 <span style="color: var(--text-muted)">Search...</span>
+                    <span class="shortcut-hint"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></span>
+                </button>
                 <div class="status-badge">
                     <span class="status-dot" id="connection-status"></span>
                     <span id="connection-text">Checking...</span>
@@ -1012,7 +1365,7 @@
             <section id="view-dashboard" class="view">
                 <div class="page-header">
                     <h1 class="page-title">Welcome to WishlistOps 👋</h1>
-                    <p class="page-subtitle">Turn your Git commits into polished Steam announcements</p>
+                    <p class="page-subtitle">Turn your Git commits into polished Steam announcements — save 5+ hours per update</p>
                 </div>
                 
                 <!-- Quick Start Workflow -->
@@ -1411,11 +1764,79 @@
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Select Commits</h3>
+                        <span class="status-pill status-pill-pending">Awaiting selection</span>
                     </div>
                     <div class="card-body text-center" style="padding: 60px;">
                         <div id="commits-list">
                             <p class="text-muted mb-lg">Connect your repository to see recent commits</p>
                             <button class="btn btn-primary btn-lg" onclick="loadCommits()">🔄 Load Commits</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Announcement Editor with Steam Preview (per Strategy Doc §4.2 Flow 2) -->
+                <div class="card mt-lg">
+                    <div class="card-header">
+                        <h3 class="card-title">📝 Announcement Editor</h3>
+                        <div class="flex gap-sm items-center">
+                            <span class="anti-slop-badge" style="font-size: 0.7rem; padding: 3px 10px;">
+                                <span class="icon">🛡️</span> Anti-slop filtered
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid-2">
+                            <!-- Editor Side -->
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label">Announcement Title</label>
+                                    <input type="text" class="form-input" id="announcement-title" 
+                                           placeholder="e.g., New Dragon Boss Fight & Performance Fixes"
+                                           oninput="updateSteamPreview()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Announcement Body</label>
+                                    <textarea class="form-input" id="announcement-body" rows="12" 
+                                              placeholder="Write your announcement here... The AI will generate this from your commits, but you can edit it before publishing."
+                                              style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; resize: vertical;"
+                                              oninput="updateSteamPreview()"></textarea>
+                                    <p class="form-hint">Supports Steam BBCode markup: [b]bold[/b], [i]italic[/i], [h1]heading[/h1]</p>
+                                </div>
+                                <div class="flex gap-sm">
+                                    <button class="btn btn-primary btn-lg" onclick="generateFromCommits()" id="generate-btn">
+                                        ✨ Generate with AI
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="sendToDiscord()">
+                                        💬 Send to Discord
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Steam Preview Side (per Strategy Doc §4.2) -->
+                            <div class="steam-preview-container">
+                                <div style="margin-bottom: var(--spacing-sm); display: flex; align-items: center; justify-content: space-between;">
+                                    <span class="form-label" style="margin: 0;">Steam Preview</span>
+                                    <span class="text-muted" style="font-size: 0.75rem;">Live preview</span>
+                                </div>
+                                <div class="steam-preview" id="steam-preview">
+                                    <div class="steam-preview-header">
+                                        <span class="steam-icon">🎮</span>
+                                        <span class="game-name" id="preview-game-name">Your Game</span>
+                                        <span class="event-type">📢 Patch Notes</span>
+                                    </div>
+                                    <div id="steam-preview-content">
+                                        <div class="steam-preview-placeholder">
+                                            <div class="icon">📝</div>
+                                            <p>Start typing to see your announcement preview</p>
+                                            <p style="font-size: 0.75rem; margin-top: 4px;">This shows exactly how it will look on Steam</p>
+                                        </div>
+                                    </div>
+                                    <div class="steam-preview-footer">
+                                        <span>📅 Today</span>
+                                        <span>🏷️ Patch Notes</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1660,6 +2081,29 @@
             </section>
             
         </main>
+    </div>
+    
+    <!-- Command Palette (per Strategy Doc §4.1 & §4.3) -->
+    <div class="command-palette-overlay hidden" id="command-palette-overlay" onclick="closeCommandPalette(event)">
+        <div class="command-palette" onclick="event.stopPropagation()">
+            <div class="command-palette-input-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="command-palette-input" id="command-palette-input" 
+                       placeholder="Type a command or search..." 
+                       oninput="filterCommands(this.value)"
+                       onkeydown="handleCommandPaletteKeydown(event)"
+                       autocomplete="off">
+                <kbd class="kbd" style="cursor: pointer;" onclick="toggleCommandPalette()">Esc</kbd>
+            </div>
+            <div class="command-palette-results" id="command-palette-results">
+                <!-- Results populated by JS -->
+            </div>
+            <div class="command-palette-footer">
+                <span><kbd class="kbd">↑↓</kbd> Navigate</span>
+                <span><kbd class="kbd">↵</kbd> Select</span>
+                <span><kbd class="kbd">Esc</kbd> Close</span>
+            </div>
+        </div>
     </div>
     
     <script src="/static/app_enhanced.js"></script>

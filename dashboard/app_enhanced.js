@@ -53,8 +53,11 @@
         initNavigation();
         initUploadZones();
         initTabs();
+        initCommandPalette();
+        initKeyboardShortcuts();
         updateUI();
         checkConnection();
+        updateSteamPreviewGameName();
     });
     
     function loadState() {
@@ -811,5 +814,281 @@
     
     // Load settings on startup
     loadSettings();
+    
+    // ============================================
+    // Command Palette (per Strategy Doc §4.1 & §4.3)
+    // ============================================
+    
+    const commands = [
+        { group: 'Navigation', icon: '📊', label: 'Go to Dashboard', action: () => showView('dashboard'), shortcut: '' },
+        { group: 'Navigation', icon: '✨', label: 'Go to Generate', action: () => showView('generate'), shortcut: 'G' },
+        { group: 'Navigation', icon: '🔑', label: 'Go to API Keys', action: () => showView('api-keys'), shortcut: '' },
+        { group: 'Navigation', icon: '🎮', label: 'Go to Game Config', action: () => showView('game-config'), shortcut: '' },
+        { group: 'Navigation', icon: '🖼️', label: 'Go to Images', action: () => showView('images'), shortcut: '' },
+        { group: 'Navigation', icon: '📝', label: 'Go to Commit Guide', action: () => showView('commits'), shortcut: '' },
+        { group: 'Navigation', icon: '⚙️', label: 'Go to Settings', action: () => showView('settings'), shortcut: '' },
+        { group: 'Actions', icon: '✨', label: 'Generate Announcement', action: () => { showView('generate'); }, shortcut: '' },
+        { group: 'Actions', icon: '💬', label: 'Test Discord Webhook', action: () => { showView('api-keys'); testDiscordWebhook(); }, shortcut: '' },
+        { group: 'Actions', icon: '🤖', label: 'Test Google AI Key', action: () => { showView('api-keys'); testGoogleAPI(); }, shortcut: '' },
+        { group: 'Actions', icon: '📤', label: 'Export Configuration', action: () => exportConfig(), shortcut: '' },
+        { group: 'Actions', icon: '📥', label: 'Import Configuration', action: () => importConfig(), shortcut: '' },
+        { group: 'Resources', icon: '📚', label: 'Open Documentation', action: () => window.open('/docs', '_blank'), shortcut: '' },
+        { group: 'Resources', icon: '🔗', label: 'Google AI Studio', action: () => window.open('https://aistudio.google.com/apikey', '_blank'), shortcut: '' },
+    ];
+    
+    let commandPaletteSelectedIndex = 0;
+    let filteredCommands = [...commands];
+    
+    function initCommandPalette() {
+        renderCommandResults(commands);
+    }
+    
+    function renderCommandResults(items) {
+        const container = document.getElementById('command-palette-results');
+        if (!container) return;
+        
+        if (items.length === 0) {
+            container.innerHTML = '<div class="command-palette-empty">No matching commands</div>';
+            return;
+        }
+        
+        let html = '';
+        let currentGroup = '';
+        
+        items.forEach((cmd, index) => {
+            if (cmd.group !== currentGroup) {
+                currentGroup = cmd.group;
+                html += '<div class="command-palette-group">' + currentGroup + '</div>';
+            }
+            html += '<div class="command-palette-item' + (index === commandPaletteSelectedIndex ? ' selected' : '') + '" '
+                  + 'data-index="' + index + '" '
+                  + 'onmouseenter="selectCommandItem(' + index + ')" '
+                  + 'onclick="executeCommand(' + index + ')">'
+                  + '<span class="icon">' + cmd.icon + '</span>'
+                  + '<span class="label">' + cmd.label + '</span>'
+                  + (cmd.shortcut ? '<span class="shortcut"><kbd class="kbd">' + cmd.shortcut + '</kbd></span>' : '')
+                  + '</div>';
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    window.toggleCommandPalette = function() {
+        const overlay = document.getElementById('command-palette-overlay');
+        if (!overlay) return;
+        
+        const isHidden = overlay.classList.contains('hidden');
+        if (isHidden) {
+            overlay.classList.remove('hidden');
+            const input = document.getElementById('command-palette-input');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            commandPaletteSelectedIndex = 0;
+            filteredCommands = [...commands];
+            renderCommandResults(filteredCommands);
+        } else {
+            overlay.classList.add('hidden');
+        }
+    };
+    
+    window.closeCommandPalette = function(event) {
+        if (event && event.target.id !== 'command-palette-overlay') return;
+        document.getElementById('command-palette-overlay')?.classList.add('hidden');
+    };
+    
+    window.filterCommands = function(query) {
+        const q = query.toLowerCase().trim();
+        if (!q) {
+            filteredCommands = [...commands];
+        } else {
+            filteredCommands = commands.filter(cmd => 
+                cmd.label.toLowerCase().includes(q) || 
+                cmd.group.toLowerCase().includes(q)
+            );
+        }
+        commandPaletteSelectedIndex = 0;
+        renderCommandResults(filteredCommands);
+    };
+    
+    window.selectCommandItem = function(index) {
+        commandPaletteSelectedIndex = index;
+        document.querySelectorAll('.command-palette-item').forEach((item, i) => {
+            item.classList.toggle('selected', i === index);
+        });
+    };
+    
+    window.executeCommand = function(index) {
+        const cmd = filteredCommands[index];
+        if (cmd) {
+            document.getElementById('command-palette-overlay')?.classList.add('hidden');
+            cmd.action();
+        }
+    };
+    
+    window.handleCommandPaletteKeydown = function(event) {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            commandPaletteSelectedIndex = Math.min(commandPaletteSelectedIndex + 1, filteredCommands.length - 1);
+            renderCommandResults(filteredCommands);
+            scrollSelectedIntoView();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            commandPaletteSelectedIndex = Math.max(commandPaletteSelectedIndex - 1, 0);
+            renderCommandResults(filteredCommands);
+            scrollSelectedIntoView();
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            executeCommand(commandPaletteSelectedIndex);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            toggleCommandPalette();
+        }
+    };
+    
+    function scrollSelectedIntoView() {
+        const selected = document.querySelector('.command-palette-item.selected');
+        if (selected) selected.scrollIntoView({ block: 'nearest' });
+    }
+    
+    // ============================================
+    // Keyboard Shortcuts (per Strategy Doc §4.1)
+    // ============================================
+    
+    function initKeyboardShortcuts() {
+        document.addEventListener('keydown', (event) => {
+            // Don't trigger if user is typing in an input/textarea
+            const target = event.target;
+            const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+            
+            // Cmd/Ctrl+K: Toggle command palette
+            if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+                event.preventDefault();
+                toggleCommandPalette();
+                return;
+            }
+            
+            // Escape: Close command palette
+            if (event.key === 'Escape') {
+                const overlay = document.getElementById('command-palette-overlay');
+                if (overlay && !overlay.classList.contains('hidden')) {
+                    event.preventDefault();
+                    toggleCommandPalette();
+                    return;
+                }
+            }
+            
+            // Don't process shortcuts if in input field
+            if (isInput) return;
+            
+            // G then G: Go to Generate (quick access)
+            // 1-5: Quick navigate to views
+            switch (event.key) {
+                case '1': showView('dashboard'); break;
+                case '2': showView('generate'); break;
+                case '3': showView('api-keys'); break;
+                case '4': showView('game-config'); break;
+                case '5': showView('images'); break;
+                case '?':
+                    window.open('/docs', '_blank');
+                    break;
+            }
+        });
+    }
+    
+    // ============================================
+    // Steam Announcement Preview (per Strategy Doc §4.2)
+    // ============================================
+    
+    window.updateSteamPreview = function() {
+        const title = document.getElementById('announcement-title')?.value || '';
+        const body = document.getElementById('announcement-body')?.value || '';
+        const container = document.getElementById('steam-preview-content');
+        
+        if (!container) return;
+        
+        if (!title && !body) {
+            container.innerHTML = '<div class="steam-preview-placeholder">'
+                + '<div class="icon">📝</div>'
+                + '<p>Start typing to see your announcement preview</p>'
+                + '<p style="font-size: 0.75rem; margin-top: 4px;">This shows exactly how it will look on Steam</p>'
+                + '</div>';
+            return;
+        }
+        
+        // Render Steam-style preview
+        let renderedBody = body
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\[b\](.*?)\[\/b\]/g, '<strong>$1</strong>')
+            .replace(/\[i\](.*?)\[\/i\]/g, '<em>$1</em>')
+            .replace(/\[u\](.*?)\[\/u\]/g, '<u>$1</u>')
+            .replace(/\[h1\](.*?)\[\/h1\]/g, '<h3 style="color:#fff; margin: 8px 0 4px; font-size: 1.1rem;">$1</h3>')
+            .replace(/\[h2\](.*?)\[\/h2\]/g, '<h4 style="color:#fff; margin: 8px 0 4px; font-size: 1rem;">$1</h4>')
+            .replace(/\[list\]/g, '<ul style="padding-left: 20px; margin: 4px 0;">')
+            .replace(/\[\/list\]/g, '</ul>')
+            .replace(/\[\*\](.*?)(?=\[\*\]|\[\/list\]|$)/gs, '<li>$1</li>');
+        
+        const escapedTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        container.innerHTML = '<div class="steam-preview-title">' + escapedTitle + '</div>'
+            + '<div class="steam-preview-body">' + renderedBody + '</div>';
+    };
+    
+    function updateSteamPreviewGameName() {
+        const el = document.getElementById('preview-game-name');
+        if (el && state.config.gameName) {
+            el.textContent = state.config.gameName;
+        }
+    }
+    
+    window.generateFromCommits = function() {
+        showNotification('Connect your repository via CLI to generate from commits. Use the editor to compose manually.', 'info');
+    };
+    
+    window.sendToDiscord = function() {
+        const title = document.getElementById('announcement-title')?.value;
+        const body = document.getElementById('announcement-body')?.value;
+        
+        if (!title || !body) {
+            showNotification('Please fill in the title and body first', 'error');
+            return;
+        }
+        
+        if (!state.config.discordWebhook) {
+            showNotification('Please configure your Discord webhook first', 'error');
+            showView('api-keys');
+            return;
+        }
+        
+        showNotification('Sending to Discord for approval...', 'info');
+        
+        // Send to Discord webhook
+        fetch(state.config.discordWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                embeds: [{
+                    title: '📢 ' + title,
+                    description: body.substring(0, 2000),
+                    color: 5793266,
+                    footer: { text: 'WishlistOps Announcement Draft — React to approve' }
+                }]
+            })
+        }).then(response => {
+            if (response.ok || response.status === 204) {
+                state.stats.announcements++;
+                saveState();
+                updateUI();
+                showNotification('Announcement sent to Discord for approval!', 'success');
+            } else {
+                showNotification('Failed to send to Discord. Check your webhook.', 'error');
+            }
+        }).catch(() => {
+            showNotification('Network error. Check your Discord webhook URL.', 'error');
+        });
+    };
     
 })();

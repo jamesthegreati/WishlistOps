@@ -16,6 +16,16 @@
     --hover: #40444B;
     --shadow: rgba(0, 0, 0, 0.2);
     --shadow-hover: rgba(88, 101, 242, 0.3);
+    /* Focus and a11y (per Strategy Doc §4.4) */
+    --focus-ring: 0 0 0 2px var(--primary-color);
+    /* Status colors for workflow states (per Strategy Doc §4.4) */
+    --status-success: #57F287;
+    --status-pending: #FEE75C;
+    --status-active: #5865F2;
+    --status-error: #ED4245;
+    /* Semantic spacing for cards (per Strategy Doc §4.4) */
+    --card-padding: 20px;
+    --card-gap: 16px;
 }
 
 * {
